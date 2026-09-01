@@ -2,13 +2,12 @@
   "name": "wacrm-mcp",
   "version": "0.1.1",
   "mcpName": "io.github.ArnasDon/wacrm-mcp",
-  "description": "Model Context Protocol (MCP) server for wacrm — drive your self-hosted WhatsApp CRM from Claude, Cursor, and other MCP clients.",
+  "description": "Model Context Protocol (MCP) server for Zero To AI — drive your self-hosted WhatsApp CRM from Claude, Cursor, and other MCP clients.",
   "license": "MIT",
-  "author": "Arnas Donauskas",
-  "homepage": "https://github.com/ArnasDon/wacrm",
+  "homepage": "https://zerotoai.in",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ArnasDon/wacrm.git",
+    "url": "git+https://github.com/zerotoaiyourwerbung-bit/wacrm.git",
     "directory": "mcp-server"
   },
   "keywords": [

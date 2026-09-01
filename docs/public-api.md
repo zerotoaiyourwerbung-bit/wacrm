@@ -1,8 +1,9 @@
 # Public API (`/api/v1`)
 
-The public API lets you drive your wacrm instance from your own
-scripts and automations — send messages, manage contacts, launch
-broadcasts — without going through the dashboard UI.
+The public API lets you drive your Zero To AI instance from your own
+scripts, backend services, and automations. It's authenticated via API
+keys with fine-grained scopes (e.g. `messages:send`, `contacts:read`),
+rate-limited per key, and completely decoupled from user sessions.
 
 > **Status:** stable. Authentication, scopes, rate limiting, the
 > messages / contacts / conversations / broadcasts endpoints, and

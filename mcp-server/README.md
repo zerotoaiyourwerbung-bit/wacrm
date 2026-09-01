@@ -1,21 +1,20 @@
-# wacrm MCP server
+# Zero To AI MCP Server
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server for
-**[wacrm](https://github.com/ArnasDon/wacrm)** — the self-hostable
-WhatsApp CRM. It lets MCP clients (Claude Desktop, Claude Code, Cursor,
-and others) drive your CRM in natural language:
+**Zero To AI** — the self-hostable WhatsApp CRM. It lets MCP clients
+(Claude Desktop, Claude Code, Cursor, and others) drive your CRM in natural language:
 
 > "How many conversations are still open?"
 > "Find the contact for +1 415 555 0123 and show the last few messages."
 > "Draft and send an order-update template to Jane."
 
-It's a thin wrapper over wacrm's public [`/api/v1`](../docs/public-api.md)
+It's a thin wrapper over Zero To AI's public [`/api/v1`](../docs/public-api.md)
 REST API. All auth, scoping, and rate limiting are enforced by your
-wacrm instance — this server just exposes the API as MCP tools.
+Zero To AI instance — this server just exposes the API as MCP tools.
 
 ## Prerequisites
 
-1. A running wacrm instance (your own self-hosted deploy).
+1. A running Zero To AI instance (your own self-hosted deploy).
 2. An API key: in the dashboard go to **Settings → API keys → New API
    key** and grant only the scopes you need. The key is shown once.
 
