@@ -134,6 +134,7 @@ Guides:
 - [Public REST API](./docs/public-api.md)
 - [Docker Deployment](./docs/docker.md)
 - [Model Context Protocol (MCP) Server](./docs/mcp.md)
+- [Syncing Upstream Changes](./docs/syncing-upstream.md)
 
 ## Stack
 
