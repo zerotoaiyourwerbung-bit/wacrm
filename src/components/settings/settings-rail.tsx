@@ -84,8 +84,8 @@ export function SettingsRail({
                     'flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium whitespace-nowrap transition-colors',
                     'lg:w-full',
                     isActive
-                      ? 'bg-primary-soft text-primary'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                      ? 'bg-primary-soft text-primary font-semibold'
+                      : 'text-foreground/80 hover:bg-muted hover:text-foreground font-medium',
                   )}
                 >
                   <Icon className="size-4 shrink-0" />

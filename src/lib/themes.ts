@@ -14,6 +14,7 @@
  */
 
 export const THEME_IDS = [
+  "lime",
   "violet",
   "emerald",
   "cobalt",
@@ -23,7 +24,7 @@ export const THEME_IDS = [
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export const DEFAULT_THEME: ThemeId = "violet";
+export const DEFAULT_THEME: ThemeId = "lime";
 
 export const STORAGE_KEY = "wacrm.theme";
 
@@ -67,6 +68,12 @@ export interface ThemeMeta {
 }
 
 export const THEMES: ReadonlyArray<ThemeMeta> = [
+  {
+    id: "lime",
+    name: "Electric Lime",
+    tagline: "Vibrant and energetic — high-contrast modern tech aesthetic.",
+    swatch: "oklch(0.82 0.22 128)",
+  },
   {
     id: "violet",
     name: "Violet",
