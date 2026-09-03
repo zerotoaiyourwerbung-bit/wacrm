@@ -62,13 +62,41 @@ export function validateTemplateName(name: string): void {
  * `[1, 2, 4]` for `"Hi {{1}} {{2}}, item {{4}}"`.
  */
 export function extractVariableIndices(text: string): number[] {
-  const matches = text.matchAll(/\{\{(\d+)\}\}/g);
+  const matches = text.matchAll(/\{\{([^}]+)\}\}/g);
   const set = new Set<number>();
+  let nextFallbackIndex = 1;
   for (const m of matches) {
-    const n = Number(m[1]);
-    if (Number.isFinite(n) && n >= 1) set.add(n);
+    const raw = m[1].trim();
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 1) {
+      set.add(n);
+    } else if (raw.length > 0) {
+      // Named variable (e.g. {{learner}}, {{name}}) synced from Meta
+      while (set.has(nextFallbackIndex)) nextFallbackIndex++;
+      set.add(nextFallbackIndex);
+    }
   }
   return [...set].sort((a, b) => a - b);
+}
+
+export interface TemplateVariableMeta {
+  isNamed: boolean;
+  name?: string;
+  index: number;
+}
+
+export function extractTemplateVariables(text: string): TemplateVariableMeta[] {
+  const matches = [...text.matchAll(/\{\{([^}]+)\}\}/g)];
+  let nextFallbackIndex = 1;
+  return matches.map((m) => {
+    const raw = m[1].trim();
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 1) {
+      return { isNamed: false, index: n };
+    }
+    const idx = nextFallbackIndex++;
+    return { isNamed: true, name: raw, index: idx };
+  });
 }
 
 /**

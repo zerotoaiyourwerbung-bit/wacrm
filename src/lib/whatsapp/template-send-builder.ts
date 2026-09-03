@@ -31,7 +31,10 @@
  */
 
 import type { MessageTemplate, TemplateButton } from '@/types';
-import { extractVariableIndices } from './template-validators';
+import {
+  extractVariableIndices,
+  extractTemplateVariables,
+} from './template-validators';
 
 export interface SendTimeParams {
   /** Values for body {{1}}, {{2}}, … indexed by variable position. */
@@ -62,7 +65,7 @@ export type MetaSendComponent =
     };
 
 type MetaSendParameter =
-  | { type: 'text'; text: string }
+  | { type: 'text'; text: string; parameter_name?: string }
   | { type: 'image'; image: { link?: string; id?: string } }
   | { type: 'video'; video: { link?: string; id?: string } }
   | { type: 'document'; document: { link?: string; id?: string } }
@@ -77,20 +80,25 @@ function buildHeaderComponent(
   if (!headerType) return null;
 
   if (headerType === 'text') {
-    // TEXT header with {{1}} → need a value. Static text headers
+    // TEXT header with {{1}} or {{name}} → need a value. Static text headers
     // (no variables) just ride along inside the template itself; no
     // header component required on send.
-    const varCount = extractVariableIndices(template.header_content ?? '').length;
-    if (varCount === 0) return null;
+    const headerVars = extractTemplateVariables(template.header_content ?? '');
+    if (headerVars.length === 0) return null;
     const value = params.headerText;
     if (!value || !value.trim()) {
       throw new Error(
         'Header text variable {{1}} requires a value — pass headerText.',
       );
     }
+    const firstVar = headerVars[0];
+    const param: MetaSendParameter =
+      firstVar?.isNamed && firstVar.name
+        ? { type: 'text', text: value, parameter_name: firstVar.name }
+        : { type: 'text', text: value };
     return {
       type: 'header',
-      parameters: [{ type: 'text', text: value }],
+      parameters: [param],
     };
   }
 
@@ -127,7 +135,8 @@ function buildBodyComponent(
   template: MessageTemplate,
   params: SendTimeParams,
 ): MetaSendComponent | null {
-  const varCount = extractVariableIndices(template.body_text).length;
+  const vars = extractTemplateVariables(template.body_text);
+  const varCount = vars.length;
   const body = params.body ?? [];
   if (varCount === 0 && body.length === 0) return null;
   if (body.length < varCount) {
@@ -140,7 +149,13 @@ function buildBodyComponent(
   const values = body.slice(0, varCount);
   return {
     type: 'body',
-    parameters: values.map((text) => ({ type: 'text', text: String(text) })),
+    parameters: values.map((text, idx) => {
+      const v = vars[idx];
+      if (v?.isNamed && v.name) {
+        return { type: 'text', text: String(text), parameter_name: v.name };
+      }
+      return { type: 'text', text: String(text) };
+    }),
   };
 }
 
