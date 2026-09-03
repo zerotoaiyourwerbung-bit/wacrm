@@ -904,6 +904,22 @@
         "time_based": {
           "label": "시간 기반",
           "hint": "반복 일정에 따라"
+        },
+        "google_sheet_row_added": {
+          "label": "구글 시트: 행 추가됨",
+          "hint": "연결된 구글 시트에 새 행이 추가되었을 때"
+        },
+        "google_sheet_row_updated": {
+          "label": "구글 시트: 행 수정됨",
+          "hint": "연결된 구글 시트의 기존 행이 수정되었을 때"
+        },
+        "google_sheet_row_added_or_updated": {
+          "label": "구글 시트: 행 추가/수정됨",
+          "hint": "연결된 구글 시트에 행이 추가되거나 수정되었을 때"
+        },
+        "webhook_received": {
+          "label": "웹훅 리스너",
+          "hint": "외부 시스템에서 HTTP POST 요청을 보낼 때 즉시 실행"
         }
       },
       "trigger": "트리거",

@@ -203,6 +203,23 @@ export function validateTriggerForActivation(
         message: 'reply ids cannot be empty strings',
       })
     }
+  } else if (
+    triggerType === 'google_sheet_row_added' ||
+    triggerType === 'google_sheet_row_updated' ||
+    triggerType === 'google_sheet_row_added_or_updated'
+  ) {
+    if (!nonEmpty(cfg.spreadsheetId)) {
+      issues.push({
+        path: 'trigger.spreadsheetId',
+        message: 'Google Spreadsheet ID is required',
+      })
+    }
+    if (!nonEmpty(cfg.sheetName)) {
+      issues.push({
+        path: 'trigger.sheetName',
+        message: 'sheet name is required',
+      })
+    }
   }
 
   return issues

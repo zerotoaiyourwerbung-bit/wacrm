@@ -904,6 +904,22 @@
         "time_based": {
           "label": "Time-Based",
           "hint": "On a recurring schedule"
+        },
+        "google_sheet_row_added": {
+          "label": "Google Sheet: Row Added",
+          "hint": "A new row is appended to a connected Google Sheet"
+        },
+        "google_sheet_row_updated": {
+          "label": "Google Sheet: Row Updated",
+          "hint": "An existing row in a connected Google Sheet is modified"
+        },
+        "google_sheet_row_added_or_updated": {
+          "label": "Google Sheet: Row Added / Updated",
+          "hint": "A row is added or modified in a connected Google Sheet"
+        },
+        "webhook_received": {
+          "label": "Webhook Listener",
+          "hint": "Trigger instantly when an external system sends an HTTP POST request"
         }
       },
       "trigger": "Trigger",

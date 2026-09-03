@@ -42,6 +42,10 @@ export interface AutomationContext {
   agent_id?: string
   /** Button / list-row id the customer tapped, for interactive_reply. */
   interactive_reply_id?: string
+  /** Contact display name, if known. */
+  contact_name?: string
+  /** Contact phone number, if known. */
+  contact_phone?: string
 }
 
 export interface DispatchInput {
@@ -355,13 +359,62 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
   }
 }
 
+async function ensureContact(args: ExecuteArgs, targetPhone?: string): Promise<string> {
+  const db = supabaseAdmin()
+
+  // 1. If an explicit recipient phone was configured on the step, resolve that contact
+  if (targetPhone) {
+    const { cleanPhoneForWhatsApp } = await import('@/lib/whatsapp/phone-utils')
+    const cleaned = cleanPhoneForWhatsApp(targetPhone)
+    if (cleaned) {
+      const { findOrCreateContact } = await import('@/lib/api/v1/contacts')
+      const contact = await findOrCreateContact(
+        db,
+        args.automation.account_id,
+        args.automation.user_id,
+        { phone: cleaned }
+      )
+      return contact.id
+    }
+  }
+
+  // 2. If trigger provided a contact
+  if (args.contactId) return args.contactId
+
+  // 3. Scan payload variables for any phone number
+  if (args.context?.vars) {
+    const { findPhoneInJson, findNameInJson, findEmailInJson } = await import('@/app/api/automations/webhook/[id]/route')
+    const phone = findPhoneInJson(args.context.vars)
+    if (phone) {
+      const { findOrCreateContact } = await import('@/lib/api/v1/contacts')
+      const name = findNameInJson(args.context.vars)
+      const email = findEmailInJson(args.context.vars)
+      const contact = await findOrCreateContact(
+        db,
+        args.automation.account_id,
+        args.automation.user_id,
+        {
+          phone,
+          name: name || undefined,
+          email: email || undefined,
+        }
+      )
+      args.contactId = contact.id
+      return contact.id
+    }
+  }
+
+  throw new Error('This step needs a recipient contact or phone number')
+}
+
 async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string> {
   const db = supabaseAdmin()
 
   switch (step.step_type) {
     case 'send_message': {
       const cfg = step.step_config as SendMessageStepConfig
-      if (!args.contactId) throw new Error('send_message needs a contact')
+      const targetPhone = cfg.recipient_phone ? interpolate(cfg.recipient_phone, args).trim() : undefined
+      const contactId = await ensureContact(args, targetPhone)
       const text = interpolate(cfg.text, args)
       if (!text.trim()) throw new Error('send_message has empty text')
       const conversationId = await resolveConversationId(args)
@@ -369,7 +422,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         accountId: args.automation.account_id,
         userId: args.automation.user_id,
         conversationId,
-        contactId: args.contactId,
+        contactId,
         text,
       })
       return `sent via Meta (${whatsapp_message_id})`
@@ -378,7 +431,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'send_buttons':
     case 'send_list': {
       const payload = step.step_config as SendButtonsStepConfig | SendListStepConfig
-      if (!args.contactId) throw new Error(`${step.step_type} needs a contact`)
+      const contactId = await ensureContact(args)
       // Validate against Meta's limits before the network call so a bad
       // payload surfaces as a clear failed-step detail rather than a raw
       // Meta 400 mid-conversation.
@@ -389,7 +442,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         accountId: args.automation.account_id,
         userId: args.automation.user_id,
         conversationId,
-        contactId: args.contactId,
+        contactId,
         payload,
       })
       return `interactive sent via Meta (${whatsapp_message_id})`
@@ -397,7 +450,8 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
 
     case 'send_template': {
       const cfg = step.step_config as SendTemplateStepConfig
-      if (!args.contactId) throw new Error('send_template needs a contact')
+      const targetPhone = cfg.recipient_phone ? interpolate(cfg.recipient_phone, args).trim() : undefined
+      const contactId = await ensureContact(args, targetPhone)
       if (!cfg.template_name) throw new Error('send_template needs template_name')
       const conversationId = await resolveConversationId(args)
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so
@@ -416,16 +470,39 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
               if (bNum) return 1
               return a.localeCompare(b)
             })
-            .map((k) => String(cfg.variables![k]))
+            .map((k) => {
+              const val = interpolate(String(cfg.variables![k]), args).trim()
+              // Meta throws (#131008) Required parameter is missing if param text is empty!
+              return val || '-'
+            })
         : []
+
+      const headerText = cfg.header_variable
+        ? (interpolate(cfg.header_variable, args).trim() || '-')
+        : undefined
+      const headerMediaUrl = cfg.header_media_url ? interpolate(cfg.header_media_url, args).trim() : undefined
+
+      const buttonParams: Record<number, string> = {}
+      if (cfg.button_variables) {
+        for (const [idx, val] of Object.entries(cfg.button_variables)) {
+          const num = Number(idx)
+          if (Number.isFinite(num)) {
+            buttonParams[num] = interpolate(val, args).trim() || '-'
+          }
+        }
+      }
+
       const { whatsapp_message_id } = await engineSendTemplate({
         accountId: args.automation.account_id,
         userId: args.automation.user_id,
         conversationId,
-        contactId: args.contactId,
+        contactId,
         templateName: cfg.template_name,
         language: cfg.language,
         params,
+        headerText,
+        headerMediaUrl,
+        buttonParams: Object.keys(buttonParams).length > 0 ? buttonParams : undefined,
       })
       return `template sent via Meta (${whatsapp_message_id})`
     }
@@ -790,11 +867,47 @@ function waitMs(cfg: WaitStepConfig): number {
   return Math.max(1_000, cfg.amount * unitMs)
 }
 
-function interpolate(s: string, args: ExecuteArgs): string {
-  return s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
-    const [ns, prop] = String(key).split('.')
-    if (ns === 'message' && prop === 'text') return String(args.context.message_text ?? '')
-    if (ns === 'vars' && prop) return String(args.context.vars?.[prop] ?? '')
+export function interpolate(s: string, args: ExecuteArgs): string {
+  // Key path allows single spaces inside segments so sheet columns like
+  // "First Name" work: {{ vars.sheet_row.First Name }}.
+  return s.replace(/\{\{\s*([\w.]+(?:\s+[\w.]+)*)\s*\}\}/g, (_, key) => {
+    const parts = String(key).split('.').map((p) => p.trim())
+    if (parts[0] === 'message' && parts[1] === 'text') {
+      return String(args.context.message_text ?? '')
+    }
+    if (parts[0] === 'contact') {
+      if (parts[1] === 'name') return String(args.context.contact_name ?? '')
+      if (parts[1] === 'phone') return String(args.context.contact_phone ?? '')
+    }
+    if (parts[0] === 'vars') {
+      let node: unknown = args.context.vars
+      for (const part of parts.slice(1)) {
+        if (node === null || node === undefined) {
+          node = undefined
+          break
+        }
+        // If node is an array and part is not an explicit index, auto-unwrap first item
+        if (Array.isArray(node)) {
+          if (/^\d+$/.test(part)) {
+            node = node[Number(part)]
+            continue
+          } else if (node.length > 0 && typeof node[0] === 'object' && node[0] !== null) {
+            node = (node[0] as Record<string, unknown>)[part]
+            continue
+          } else {
+            node = undefined
+            break
+          }
+        }
+        if (typeof node === 'object') {
+          node = (node as Record<string, unknown>)[part]
+        } else {
+          node = undefined
+          break
+        }
+      }
+      return node === undefined || node === null ? '' : String(node)
+    }
     return ''
   })
 }

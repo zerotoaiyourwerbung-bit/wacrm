@@ -465,7 +465,15 @@ export type AutomationTriggerType =
   | 'time_based'
   /** Customer tapped a reply button / list row whose id matches; lets
    *  multi-step menus be chained across automations. */
-  | 'interactive_reply';
+  | 'interactive_reply'
+  /** A new row was appended to a connected Google Sheet. */
+  | 'google_sheet_row_added'
+  /** An existing row in a connected Google Sheet was modified. */
+  | 'google_sheet_row_updated'
+  /** Either a new row or an update in a connected Google Sheet. */
+  | 'google_sheet_row_added_or_updated'
+  /** An external system called an incoming webhook endpoint. */
+  | 'webhook_received';
 
 export type AutomationStepType =
   | 'send_message'
@@ -513,16 +521,55 @@ export interface InteractiveReplyTriggerConfig {
   reply_ids: string[];
 }
 
+export interface GoogleSheetTriggerConfig {
+  /** Google Spreadsheet ID (from the URL). */
+  spreadsheetId: string;
+  /** Cached Google Spreadsheet title for display during loading. */
+  spreadsheetName?: string;
+  /** Sheet tab name within the spreadsheet. */
+  sheetName: string;
+  /** Which change event to listen for. */
+  triggerEvent: 'row_added' | 'row_updated' | 'row_added_or_updated';
+  /** How often the poller checks for changes, in minutes. Default 5. */
+  pollIntervalMinutes?: number;
+  /**
+   * Column whose value is the WhatsApp phone number used to resolve
+   * the contact. When unset, the poller auto-detects from common
+   * header names (phone / whatsapp / mobile / …).
+   */
+  phoneColumn?: string;
+  /** Column whose value is the Contact Name. When unset, auto-detects (Name / Full Name...). */
+  nameColumn?: string;
+  /** Column whose value is the Contact Email. When unset, auto-detects (Email / Mail...). */
+  emailColumn?: string;
+}
+
+export interface WebhookTriggerConfig {
+  /** Optional secret token required in x-webhook-secret header, Bearer token, or ?secret= query. */
+  secret?: string;
+  /** Key path in the incoming JSON payload for the phone number (default: 'phone'). */
+  phoneField?: string;
+  /** Key path in the incoming JSON payload for contact name (optional, e.g. 'name'). */
+  nameField?: string;
+  /** Key path in the incoming JSON payload for contact email (optional, e.g. 'email'). */
+  emailField?: string;
+  /** Saved sample payload from recent webhook calls (for variable preview). */
+  samplePayload?: Record<string, unknown>;
+}
+
 export type AutomationTriggerConfig =
   | Record<string, never>
   | KeywordMatchTriggerConfig
   | TagTriggerConfig
   | TimeBasedTriggerConfig
   | InteractiveReplyTriggerConfig
+  | GoogleSheetTriggerConfig
+  | WebhookTriggerConfig
   | Record<string, unknown>;
 
 export interface SendMessageStepConfig {
   text: string;
+  recipient_phone?: string;
 }
 
 /**
@@ -536,7 +583,11 @@ export type SendListStepConfig = InteractiveMessagePayload;
 export interface SendTemplateStepConfig {
   template_name: string;
   language?: string;
+  recipient_phone?: string;
   variables?: Record<string, string>;
+  header_variable?: string;
+  header_media_url?: string;
+  button_variables?: Record<string, string>;
 }
 
 export interface TagStepConfig {

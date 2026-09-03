@@ -33,6 +33,13 @@ import {
   ArrowUp,
   MousePointerClick,
   List,
+  Image as ImageIcon,
+  ExternalLink,
+  Sparkles,
+  CheckCircle2,
+  Copy,
+  Check,
+  Phone,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -53,8 +60,11 @@ import type {
   InteractiveMessagePayload,
   KeywordMatchTriggerConfig,
   MessageTemplate,
+  SendTemplateStepConfig,
   Tag as TagRecord,
+  WebhookTriggerConfig,
 } from "@/types"
+import { extractVariableIndices } from "@/lib/whatsapp/template-validators"
 import {
   InteractiveBuilder,
   blankButtonsPayload,
@@ -147,6 +157,10 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType }[] = [
   { value: "conversation_assigned" },
   { value: "tag_added" },
   { value: "time_based" },
+  { value: "google_sheet_row_added" },
+  { value: "google_sheet_row_updated" },
+  { value: "google_sheet_row_added_or_updated" },
+  { value: "webhook_received" },
 ]
 
 function cid(): string {
@@ -551,30 +565,100 @@ function DealPipelineFields({
 }
 
 /** Template dropdown showing approved templates by name + language,
- *  storing both template_name and language. Falls back to manual name +
- *  language inputs when no approved templates are synced yet. */
+ *  and dynamically rendering variable inputs based on variable types
+ *  (text header, media header, body variables, button URL suffixes). */
 function SendTemplateFields({
-  templateName,
-  language,
+  config,
   onChange,
   t,
 }: {
-  templateName: string
-  language: string
-  onChange: (patch: { template_name: string; language: string }) => void
+  config: SendTemplateStepConfig
+  onChange: (patch: Partial<SendTemplateStepConfig>) => void
   t: ReturnType<typeof useTranslations>
 }) {
   const { templates } = useResources()
 
+  const templateName = config.template_name ?? ""
+  const language = config.language ?? "en_US"
+  const variables = config.variables ?? {}
+  const headerVariable = config.header_variable ?? ""
+  const headerMediaUrl = config.header_media_url ?? ""
+  const buttonVariables = config.button_variables ?? {}
+
+  const toValue = (name: string, lang: string) => `${name}::${lang}`
+  const current = templateName ? toValue(templateName, language) : ""
+  const selectedTemplate = templates.find(
+    (tmpl) =>
+      tmpl.name === templateName &&
+      (tmpl.language ?? "en_US") === (language || "en_US")
+  )
+
+  // Header variable detection
+  const hasTextHeaderVar =
+    selectedTemplate?.header_type === "text" &&
+    !!selectedTemplate.header_content &&
+    extractVariableIndices(selectedTemplate.header_content).length > 0
+
+  const hasMediaHeader =
+    selectedTemplate?.header_type &&
+    ["image", "video", "document"].includes(selectedTemplate.header_type)
+
+  // Body variables
+  const bodyVarIndices = selectedTemplate
+    ? extractVariableIndices(selectedTemplate.body_text)
+    : []
+
+  // Dynamic URL buttons with variables
+  const urlButtonsWithVars = (selectedTemplate?.buttons ?? [])
+    .map((btn, idx) => ({ btn, idx }))
+    .filter(
+      ({ btn }) =>
+        btn.type === "URL" &&
+        "url" in btn &&
+        typeof (btn as { url?: string }).url === "string" &&
+        extractVariableIndices((btn as { url: string }).url).length > 0
+    )
+    .map(({ btn, idx }) => ({ btn: btn as { type: "URL"; text: string; url: string }, idx }))
+
+  const hasAnyVariables =
+    hasTextHeaderVar ||
+    hasMediaHeader ||
+    bodyVarIndices.length > 0 ||
+    urlButtonsWithVars.length > 0
+
+  function setBodyVariable(idx: number, value: string) {
+    onChange({
+      variables: {
+        ...variables,
+        [String(idx)]: value,
+      },
+    })
+  }
+
+  function setButtonVariable(btnIdx: number, value: string) {
+    onChange({
+      button_variables: {
+        ...buttonVariables,
+        [String(btnIdx)]: value,
+      },
+    })
+  }
+
+  // Quick insert helper
+  function insertToken(currentVal: string, token: string): string {
+    return currentVal ? `${currentVal} ${token}` : token
+  }
+
   if (templates.length === 0) {
     return (
-      <>
+      <div className="space-y-3">
         <FieldBlock label={t("templates.templateNameLabel")}>
           <Input
             value={templateName}
             onChange={(e) =>
               onChange({ template_name: e.target.value, language })
             }
+            placeholder="e.g. order_confirmation"
             className="bg-muted text-foreground"
           />
         </FieldBlock>
@@ -584,47 +668,388 @@ function SendTemplateFields({
             onChange={(e) =>
               onChange({ template_name: templateName, language: e.target.value })
             }
+            placeholder="e.g. en_US"
             className="bg-muted text-foreground"
           />
         </FieldBlock>
-      </>
+        {/* Dynamic fallback variable editor */}
+        <div className="rounded-md border border-border bg-card/60 p-2.5">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold text-foreground">
+              Template Variables ({"{{1}}"}, {"{{2}}"}...)
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-[11px]"
+              onClick={() => {
+                const nextIdx = Object.keys(variables).length + 1
+                setBodyVariable(nextIdx, "")
+              }}
+            >
+              <Plus className="mr-1 h-3 w-3" /> Add Variable
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {Object.keys(variables).length === 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                No variables added yet. Click &quot;Add Variable&quot; if this template has parameters.
+              </p>
+            )}
+            {Object.keys(variables).map((key) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground w-12">
+                  {`{{${key}}}`}
+                </span>
+                <Input
+                  value={variables[key] ?? ""}
+                  onChange={(e) =>
+                    onChange({
+                      variables: { ...variables, [key]: e.target.value },
+                    })
+                  }
+                  placeholder={`Value for {{${key}}}`}
+                  className="h-8 bg-muted text-xs text-foreground"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  onClick={() => {
+                    const next = { ...variables }
+                    delete next[key]
+                    onChange({ variables: next })
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     )
   }
 
-  // Encode name + language in the option value so two templates that
-  // share a name across languages stay distinct.
-  const toValue = (name: string, lang: string) => `${name}::${lang}`
-  const current = templateName ? toValue(templateName, language) : ""
   const hasMatch = templates.some(
-    (t) => toValue(t.name, t.language ?? "en_US") === current,
+    (t) => toValue(t.name, t.language ?? "en_US") === current
   )
 
   return (
-    <FieldBlock label={t("templates.templateLabel")}>
-      <select
-        value={current}
-        onChange={(e) => {
-          const [name, lang] = e.target.value.split("::")
-          onChange({ template_name: name ?? "", language: lang ?? "" })
-        }}
-        className={SELECT_CLASS}
-      >
-        <option value="">{t("templates.select")}</option>
-        {templates.map((tmpl) => {
-          const lang = tmpl.language ?? "en_US"
-          return (
-            <option key={tmpl.id} value={toValue(tmpl.name, lang)}>
-              {tmpl.name} ({lang})
+    <div className="space-y-3">
+      {/* Recipient Phone (Optional override) */}
+      <div className="rounded-md border border-border bg-card/60 p-2.5">
+        <div className="mb-1 flex items-center justify-between">
+          <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <Phone className="h-3.5 w-3.5 text-emerald-400" />
+            Recipient Contact Number
+          </label>
+          <span className="text-[10px] rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
+            Optional
+          </span>
+        </div>
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          Leave empty to use trigger contact, or specify custom phone / variable.
+        </p>
+        <Input
+          value={config.recipient_phone ?? ""}
+          onChange={(e) => onChange({ recipient_phone: e.target.value })}
+          placeholder="Default: {{ contact.phone }}"
+          className="bg-muted text-xs text-foreground font-mono"
+        />
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          <button
+            type="button"
+            onClick={() => onChange({ recipient_phone: "{{ contact.phone }}" })}
+            className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
+          >
+            + contact.phone
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange({ recipient_phone: "{{ vars.webhook.body.buyer.phone }}" })}
+            className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] text-violet-400 hover:bg-violet-500/20"
+          >
+            + vars.webhook.body.buyer.phone
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange({ recipient_phone: "{{ vars.buyer.phone }}" })}
+            className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] text-violet-400 hover:bg-violet-500/20"
+          >
+            + vars.buyer.phone
+          </button>
+        </div>
+      </div>
+
+      <FieldBlock label={t("templates.templateLabel")}>
+        <select
+          value={current}
+          onChange={(e) => {
+            const [name, lang] = e.target.value.split("::")
+            onChange({
+              template_name: name ?? "",
+              language: lang ?? "",
+              // Reset variables on template switch
+              variables: {},
+              header_variable: "",
+              header_media_url: "",
+              button_variables: {},
+            })
+          }}
+          className={SELECT_CLASS}
+        >
+          <option value="">{t("templates.select")}</option>
+          {templates.map((tmpl) => {
+            const lang = tmpl.language ?? "en_US"
+            return (
+              <option key={tmpl.id} value={toValue(tmpl.name, lang)}>
+                {tmpl.name} ({lang})
+              </option>
+            )
+          })}
+          {current && !hasMatch && (
+            <option value={current}>
+              {t("templates.unknown", {
+                name: templateName,
+                lang: language || t("templates.unknownLang"),
+              })}
             </option>
-          )
-        })}
-        {current && !hasMatch && (
-          <option value={current}>
-            {t("templates.unknown", { name: templateName, lang: language || t("templates.unknownLang") })}
-          </option>
-        )}
-      </select>
-    </FieldBlock>
+          )}
+        </select>
+      </FieldBlock>
+
+      {selectedTemplate && (
+        <>
+          {/* Header Variable: Text with {{1}} */}
+          {hasTextHeaderVar && (
+            <div className="rounded-md border border-border bg-card/60 p-2.5">
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-blue-400" />
+                  Header Text Variable ({"{{1}}"})
+                </label>
+                <span className="text-[10px] rounded bg-blue-500/10 px-1.5 py-0.5 font-medium text-blue-400">
+                  Header
+                </span>
+              </div>
+              <p className="mb-2 text-[11px] text-muted-foreground truncate">
+                Format: &quot;{selectedTemplate.header_content}&quot;
+              </p>
+              <Input
+                value={headerVariable}
+                onChange={(e) => onChange({ header_variable: e.target.value })}
+                placeholder="e.g. {{ contact.name }} or custom text"
+                className="bg-muted text-xs text-foreground"
+              />
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={() => onChange({ header_variable: insertToken(headerVariable, "{{ contact.name }}") })}
+                  className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
+                >
+                  + contact.name
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Header Media URL: Image / Video / Document */}
+          {hasMediaHeader && (
+            <div className="rounded-md border border-border bg-card/60 p-2.5">
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <ImageIcon className="h-3.5 w-3.5 text-emerald-400" />
+                  Header {selectedTemplate.header_type?.toUpperCase()} URL
+                </label>
+                <span className="text-[10px] rounded bg-emerald-500/10 px-1.5 py-0.5 font-medium text-emerald-400 uppercase">
+                  {selectedTemplate.header_type}
+                </span>
+              </div>
+              <p className="mb-2 text-[11px] text-muted-foreground">
+                Enter a public media link or dynamic variable like {`{{ vars.sheet_row.ImageUrl }}`}
+              </p>
+              <Input
+                value={headerMediaUrl}
+                onChange={(e) => onChange({ header_media_url: e.target.value })}
+                placeholder={selectedTemplate.header_media_url || "https://example.com/image.jpg"}
+                className="bg-muted text-xs text-foreground font-mono"
+              />
+            </div>
+          )}
+
+          {/* Body Variables */}
+          {bodyVarIndices.length > 0 && (
+            <div className="space-y-2.5 rounded-md border border-border bg-card/60 p-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Body Variables
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {bodyVarIndices.length} {bodyVarIndices.length === 1 ? "variable" : "variables"}
+                </span>
+              </div>
+
+              {bodyVarIndices.map((idx) => {
+                const sample = selectedTemplate.sample_values?.body?.[idx - 1]
+                const val = variables[String(idx)] ?? ""
+                return (
+                  <div key={idx} className="space-y-1 rounded border border-border/60 bg-muted/40 p-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-foreground">
+                        Variable {`{{${idx}}}`}
+                      </span>
+                      {sample && (
+                        <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">
+                          Sample: {sample}
+                        </span>
+                      )}
+                    </div>
+                    <Input
+                      value={val}
+                      onChange={(e) => setBodyVariable(idx, e.target.value)}
+                      placeholder={sample ? `e.g. ${sample}` : `Value for {{${idx}}}`}
+                      className="bg-background text-xs text-foreground"
+                    />
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setBodyVariable(idx, insertToken(val, "{{ contact.name }}"))}
+                        className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
+                      >
+                        + contact.name
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBodyVariable(idx, insertToken(val, "{{ contact.phone }}"))}
+                        className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground"
+                      >
+                        + contact.phone
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBodyVariable(idx, insertToken(val, "{{ vars.webhook. }}"))}
+                        className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] text-violet-400 hover:bg-violet-500/20 hover:text-violet-300"
+                        title="Access any field from incoming webhook"
+                      >
+                        + vars.webhook.*
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Button Variables */}
+          {urlButtonsWithVars.length > 0 && (
+            <div className="space-y-2.5 rounded-md border border-border bg-card/60 p-2.5">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <ExternalLink className="h-3.5 w-3.5 text-cyan-400" />
+                Button URL Parameters
+              </span>
+              {urlButtonsWithVars.map(({ btn, idx }) => (
+                <div key={idx} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-foreground">
+                      &quot;{btn.text}&quot; URL Suffix
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground truncate font-mono">
+                    {btn.url}
+                  </p>
+                  <Input
+                    value={buttonVariables[String(idx)] ?? ""}
+                    onChange={(e) => setButtonVariable(idx, e.target.value)}
+                    placeholder="e.g. {{ vars.sheet_row.OrderId }} or suffix"
+                    className="bg-muted text-xs text-foreground"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!hasAnyVariables && (
+            <div className="flex items-center gap-2 rounded-md border border-border bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+              <span>This template has no dynamic variables. It will send static approved content.</span>
+            </div>
+          )}
+
+          {/* Live WhatsApp Message Preview */}
+          <div className="mt-3 space-y-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Live WhatsApp Preview
+            </span>
+            <div className="rounded-lg border border-border bg-muted/60 p-3 shadow-inner">
+              <div className="rounded-lg border border-border bg-card p-3 shadow-sm space-y-2 text-xs">
+                {/* Header preview */}
+                {selectedTemplate.header_type === "text" && selectedTemplate.header_content && (
+                  <div className="font-bold text-foreground">
+                    {selectedTemplate.header_content.replace(/\{\{1\}\}/g, headerVariable || "{{1}}")}
+                  </div>
+                )}
+                {hasMediaHeader && (
+                  <div className="flex items-center justify-center rounded border border-dashed border-border bg-muted/50 py-4 text-xs text-muted-foreground gap-2">
+                    <ImageIcon className="h-4 w-4" />
+                    <span>[{selectedTemplate.header_type?.toUpperCase()} HEADER]</span>
+                  </div>
+                )}
+
+                {/* Body preview */}
+                <div className="whitespace-pre-wrap leading-relaxed text-foreground">
+                  {selectedTemplate.body_text.split(/(\{\{\d+\}\})/).map((part, i) => {
+                    const match = part.match(/^\{\{(\d+)\}\}$/)
+                    if (match) {
+                      const num = match[1]
+                      const val = variables[num]
+                      if (val) {
+                        return (
+                          <span key={i} className="font-semibold text-primary underline decoration-primary/50">
+                            {val}
+                          </span>
+                        )
+                      }
+                      return (
+                        <span key={i} className="rounded bg-amber-500/10 px-1 py-0.5 font-mono text-[11px] text-amber-400">
+                          {part}
+                        </span>
+                      )
+                    }
+                    return <span key={i}>{part}</span>
+                  })}
+                </div>
+
+                {/* Footer preview */}
+                {selectedTemplate.footer_text && (
+                  <div className="text-[11px] text-muted-foreground border-t border-border/40 pt-1">
+                    {selectedTemplate.footer_text}
+                  </div>
+                )}
+
+                {/* Buttons preview */}
+                {selectedTemplate.buttons && selectedTemplate.buttons.length > 0 && (
+                  <div className="space-y-1 border-t border-border/60 pt-2">
+                    {selectedTemplate.buttons.map((b, bi) => (
+                      <div
+                        key={bi}
+                        className="flex items-center justify-center gap-1.5 rounded border border-border/80 bg-muted/40 py-1 text-[11px] font-medium text-foreground"
+                      >
+                        {b.type === "URL" && <ExternalLink className="h-3 w-3 text-muted-foreground" />}
+                        <span>{b.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -746,6 +1171,17 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
             aria-label={t("activeAria")}
           />
         </div>
+        {isEditing && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push(`/automations/${initial.id}/logs`)}
+            className="gap-1.5"
+          >
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Logs</span>
+          </Button>
+        )}
         <Button
           onClick={save}
           disabled={saving}
@@ -764,6 +1200,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
             <TriggerCard
               type={state.trigger_type}
               config={state.trigger_config}
+              automationId={state.id}
               onTypeChange={(tVal) => patchTop("trigger_type", tVal)}
               onConfigChange={(c) => patchTop("trigger_config", c)}
               t={t}
@@ -793,12 +1230,14 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
 function TriggerCard({
   type,
   config,
+  automationId,
   onTypeChange,
   onConfigChange,
   t,
 }: {
   type: AutomationTriggerType
   config: Record<string, unknown>
+  automationId?: string
   onTypeChange: (t: AutomationTriggerType) => void
   onConfigChange: (c: Record<string, unknown>) => void
   t: ReturnType<typeof useTranslations>
@@ -887,6 +1326,23 @@ function TriggerCard({
                   {t("scheduleHint")}
                 </p>
               </div>
+            )}
+            {(type === "google_sheet_row_added" ||
+              type === "google_sheet_row_updated" ||
+              type === "google_sheet_row_added_or_updated") && (
+              <GoogleSheetConfig
+                config={config}
+                onChange={onConfigChange}
+                t={t}
+              />
+            )}
+            {type === "webhook_received" && (
+              <WebhookListenerConfig
+                automationId={automationId}
+                config={config}
+                onChange={onConfigChange}
+                t={t}
+              />
             )}
           </div>
         )}
@@ -1027,6 +1483,629 @@ function InteractiveReplyConfig({
         className="bg-muted font-mono text-foreground"
       />
       <p className="mt-1 text-[11px] text-muted-foreground">{t("replyIdsHelp")}</p>
+    </div>
+  )
+}
+
+function GoogleSheetConfig({
+  config,
+  onChange,
+  t,
+}: {
+  config: Record<string, unknown>
+  onChange: (c: Record<string, unknown>) => void
+  t: ReturnType<typeof useTranslations>
+}) {
+  const [spreadsheets, setSpreadsheets] = useState<{ id: string; name: string }[]>([])
+  const [sheets, setSheets] = useState<string[]>([])
+  const [headers, setHeaders] = useState<string[]>([])
+  const [connected, setConnected] = useState<boolean | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const spreadsheetId = (config.spreadsheetId as string) ?? ""
+  const sheetName = (config.sheetName as string) ?? ""
+  const phoneColumn = (config.phoneColumn as string) ?? ""
+  const nameColumn = (config.nameColumn as string) ?? ""
+  const emailColumn = (config.emailColumn as string) ?? ""
+  const pollInterval = (config.pollIntervalMinutes as number) ?? 5
+
+  // Check connection status + load spreadsheet list on mount.
+  useEffect(() => {
+    let cancelled = false
+
+    // The OAuth callback redirects back with ?gsheets_error=... on
+    // failure. Read it once from the URL (not useSearchParams — the
+    // edit page has no Suspense boundary) and surface the reason.
+    const oauthError = new URLSearchParams(window.location.search).get('gsheets_error')
+    if (oauthError) {
+      if (oauthError === 'no_refresh_token') {
+        setError(
+          'Google did not return a refresh token. Revoke this app at ' +
+          'https://myaccount.google.com/permissions, then click Connect Google again.'
+        )
+      } else if (oauthError === 'token_exchange_failed') {
+        setError('Google rejected the authorization code. Please try connecting again.')
+      } else if (oauthError === 'persist_failed') {
+        setError('Connected, but saving the token failed. Check server logs and retry.')
+      } else if (oauthError === 'unauthorized') {
+        setError('Your session expired during the Google connect flow. Sign in again and retry.')
+      } else {
+        setError(`Google connect failed (${oauthError}). Please try again.`)
+      }
+    }
+
+    setLoading(true)
+    fetch('/api/google-sheets/spreadsheets')
+      .then(async (res) => {
+        if (res.ok) {
+          const json = await res.json()
+          if (!cancelled) {
+            setConnected(true)
+            setSpreadsheets(json.spreadsheets ?? [])
+          }
+        } else {
+          const json = await res.json().catch(() => null)
+          const message = json?.error ?? `HTTP ${res.status}`
+          if (!cancelled) {
+            // 400 = genuinely not connected → show the connect button.
+            // Any other status means the token IS saved but the
+            // spreadsheet list failed (e.g. Drive API disabled) —
+            // show connected with the error so it doesn't look like
+            // a reconnect loop.
+            if (res.status === 400) {
+              setConnected(false)
+            } else {
+              setConnected(true)
+              setError(message)
+            }
+          }
+        }
+      })
+      .catch(() => { if (!cancelled) setConnected(false) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  // Load tabs when a spreadsheet is selected.
+  useEffect(() => {
+    if (!spreadsheetId) {
+      setSheets([])
+      return
+    }
+    let cancelled = false
+    fetch(`/api/google-sheets/spreadsheets?spreadsheetId=${encodeURIComponent(spreadsheetId)}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const json = await res.json()
+          if (!cancelled) setSheets(json.sheets ?? [])
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [spreadsheetId])
+
+  // Load column headers when a tab is selected — used for the phone
+  // column picker and to show which {{ vars.sheet_row.* }} are usable.
+  useEffect(() => {
+    if (!spreadsheetId || !sheetName) {
+      setHeaders([])
+      return
+    }
+    let cancelled = false
+    fetch(
+      `/api/google-sheets/spreadsheets?spreadsheetId=${encodeURIComponent(spreadsheetId)}&sheetName=${encodeURIComponent(sheetName)}`,
+    )
+      .then(async (res) => {
+        if (res.ok) {
+          const json = await res.json()
+          if (!cancelled) setHeaders(json.headers ?? [])
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [spreadsheetId, sheetName])
+
+  function connectGoogle() {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+    if (!clientId) {
+      setError('Google is not configured on this deployment')
+      return
+    }
+    const redirectUri = `${window.location.origin}/api/google-sheets/oauth/callback`
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/drive.readonly',
+      access_type: 'offline',
+      prompt: 'consent',
+      // Carry the originating page so the callback can return here
+      // instead of the automations list. Path-only — no host — so it
+      // can't be turned into an open redirect.
+      state: window.location.pathname + window.location.search,
+    })
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+  }
+
+  // Only show full loading fallback when configuring a brand new trigger with no spreadsheet selected yet
+  if (loading && !spreadsheetId) {
+    return (
+      <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+        Checking Google connection…
+      </div>
+    )
+  }
+
+  if (connected === false && !spreadsheetId) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Connect your Google account to pick a spreadsheet.
+        </p>
+        <Button type="button" variant="outline" size="sm" onClick={connectGoogle}>
+          Connect Google
+        </Button>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <div>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="block text-xs font-medium text-muted-foreground">
+            Spreadsheet
+          </label>
+          {loading && (
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              Syncing…
+            </span>
+          )}
+        </div>
+        <select
+          value={spreadsheetId}
+          onChange={(e) => {
+            const selected = spreadsheets.find((s) => s.id === e.target.value)
+            onChange({
+              ...config,
+              spreadsheetId: e.target.value,
+              spreadsheetName: selected?.name ?? '',
+              sheetName: '',
+              phoneColumn: '',
+              nameColumn: '',
+              emailColumn: '',
+            })
+          }}
+          className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+        >
+          <option value="">Select a spreadsheet…</option>
+          {spreadsheetId && !spreadsheets.some((s) => s.id === spreadsheetId) && (
+            <option value={spreadsheetId}>
+              {(config.spreadsheetName as string) || 'Loading spreadsheet…'}
+            </option>
+          )}
+          {spreadsheets.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          Sheet tab
+        </label>
+        <select
+          value={sheetName}
+          onChange={(e) =>
+            onChange({
+              ...config,
+              sheetName: e.target.value,
+              phoneColumn: '',
+              nameColumn: '',
+              emailColumn: '',
+            })
+          }
+          disabled={!spreadsheetId}
+          className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50"
+        >
+          <option value="">
+            {spreadsheetId ? 'Select a tab…' : 'Pick a spreadsheet first'}
+          </option>
+          {sheetName && !sheets.includes(sheetName) && (
+            <option value={sheetName}>{sheetName}</option>
+          )}
+          {sheets.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+      {sheetName && (
+        <div className="space-y-3 pt-1">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Phone number column <span className="text-destructive">*</span>
+            </label>
+            <select
+              value={phoneColumn}
+              onChange={(e) => onChange({ ...config, phoneColumn: e.target.value })}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+            >
+              <option value="">Auto-detect (Phone / WhatsApp / Mobile…)</option>
+              {phoneColumn && !headers.includes(phoneColumn) && (
+                <option value={phoneColumn}>{phoneColumn}</option>
+              )}
+              {headers.map((h) => (
+                <option key={h} value={h}>
+                  {h}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              The value in this column is used as the WhatsApp number to send messages to.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Contact name column <span className="font-normal text-muted-foreground/70">(optional)</span>
+            </label>
+            <select
+              value={nameColumn}
+              onChange={(e) => onChange({ ...config, nameColumn: e.target.value })}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+            >
+              <option value="">Auto-detect (Name / Full Name / Client…)</option>
+              {nameColumn && !headers.includes(nameColumn) && (
+                <option value={nameColumn}>{nameColumn}</option>
+              )}
+              {headers.map((h) => (
+                <option key={h} value={h}>
+                  {h}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Saves the contact's name in CRM and inbox when creating new contacts from rows.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Contact email column <span className="font-normal text-muted-foreground/70">(optional)</span>
+            </label>
+            <select
+              value={emailColumn}
+              onChange={(e) => onChange({ ...config, emailColumn: e.target.value })}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+            >
+              <option value="">Auto-detect (Email / Mail…)</option>
+              {emailColumn && !headers.includes(emailColumn) && (
+                <option value={emailColumn}>{emailColumn}</option>
+              )}
+              {headers.map((h) => (
+                <option key={h} value={h}>
+                  {h}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          Poll interval (minutes)
+        </label>
+        <Input
+          type="number"
+          min={1}
+          max={60}
+          value={pollInterval}
+          onChange={(e) =>
+            onChange({ ...config, pollIntervalMinutes: Number(e.target.value) || 1 })
+          }
+          className="bg-muted text-foreground"
+        />
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          How often the sheet is checked for changes.
+        </p>
+      </div>
+      {sheetName && headers.length > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          Row values are available in message steps:{" "}
+          {headers.slice(0, 6).map((h) => (
+            <code key={h} className="mr-1 font-mono">
+              {`{{ vars.sheet_row.${h} }}`}
+            </code>
+          ))}
+          {headers.length > 6 && ` +${headers.length - 6} more`}
+        </p>
+      )}
+      {!sheetName && (
+        <p className="text-[11px] text-muted-foreground">
+          Row values are available as <code className="font-mono">{'{{ vars.sheet_row.<Column> }}'}</code> in
+          message steps — e.g. <code className="font-mono">{'{{ vars.sheet_row.Phone }}'}</code>.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function WebhookListenerConfig({
+  automationId,
+  config,
+  onChange,
+  t: _t,
+}: {
+  automationId?: string
+  config: Record<string, unknown>
+  onChange: (c: Record<string, unknown>) => void
+  t: ReturnType<typeof useTranslations>
+}) {
+  const [copied, setCopied] = useState(false)
+  const [copiedCurl, setCopiedCurl] = useState(false)
+  const origin = typeof window !== "undefined" ? window.location.origin : ""
+  const webhookUrl = automationId
+    ? `${origin}/api/automations/webhook/${automationId}`
+    : ""
+
+  const secret = (config.secret as string) ?? ""
+
+  // Sample or received JSON payload
+  const defaultSample = {
+    phone: "919876543210",
+    name: "John Doe",
+    order_id: "ORD-1234",
+    amount: "$99.00",
+  }
+
+  const samplePayload =
+    (config.samplePayload as Record<string, unknown>) || defaultSample
+
+  const [jsonText, setJsonText] = useState(() =>
+    JSON.stringify(samplePayload, null, 2)
+  )
+  const [jsonError, setJsonError] = useState<string | null>(null)
+
+  function handleJsonChange(text: string) {
+    setJsonText(text)
+    try {
+      const parsed = JSON.parse(text)
+      if (typeof parsed === "object" && parsed !== null) {
+        setJsonError(null)
+        onChange({ ...config, samplePayload: parsed })
+      } else {
+        setJsonError("Valid JSON object or array expected")
+      }
+    } catch {
+      setJsonError("Invalid JSON format")
+    }
+  }
+
+  function copyUrl() {
+    if (!automationId) {
+      toast.error("Please save the automation first to generate your unique webhook URL.")
+      return
+    }
+    navigator.clipboard.writeText(webhookUrl)
+    setCopied(true)
+    toast.success("Webhook URL copied to clipboard!")
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function generateSecret() {
+    const s =
+      "whsec_" +
+      Math.random().toString(36).slice(2, 10) +
+      Math.random().toString(36).slice(2, 10)
+    onChange({ ...config, secret: s })
+    toast.success("Generated secret! Click Save to apply.")
+  }
+
+  const testCurl = automationId
+    ? `curl -X POST "${webhookUrl}${secret ? `?secret=${secret}` : ""}" -H "Content-Type: application/json" -d '${JSON.stringify(samplePayload)}'`
+    : ""
+
+  function copyCurl() {
+    if (!testCurl) return
+    navigator.clipboard.writeText(testCurl)
+    setCopiedCurl(true)
+    toast.success("Test cURL command copied!")
+    setTimeout(() => setCopiedCurl(false), 2000)
+  }
+
+  function extractPaths(val: unknown, prefix = "", maxDepth = 4): string[] {
+    if (!val || typeof val !== "object" || maxDepth <= 0) return []
+    if (Array.isArray(val)) {
+      if (val.length === 0) return []
+      return extractPaths(val[0], prefix, maxDepth - 1)
+    }
+    const paths: string[] = []
+    for (const [key, child] of Object.entries(val as Record<string, unknown>)) {
+      if (prefix === "" && (key === "headers" || key === "params" || key === "query")) {
+        continue
+      }
+      const currentPath = prefix ? `${prefix}.${key}` : key
+      if (!child || typeof child !== "object") {
+        paths.push(currentPath)
+      } else {
+        const sub = extractPaths(child, currentPath, maxDepth - 1)
+        if (sub.length > 0) {
+          paths.push(...sub)
+        } else {
+          paths.push(currentPath)
+        }
+      }
+    }
+    return paths
+  }
+
+  const extractedKeys = Array.from(new Set(extractPaths(samplePayload)))
+
+  return (
+    <div className="space-y-3">
+      {/* Webhook URL */}
+      <div>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <Webhook className="h-3.5 w-3.5 text-violet-400" />
+            Webhook URL
+          </label>
+          <span className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-bold text-violet-400">
+            POST
+          </span>
+        </div>
+        {automationId ? (
+          <div className="flex items-center gap-1.5">
+            <Input
+              readOnly
+              value={webhookUrl}
+              className="bg-muted text-xs font-mono text-foreground select-all"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={copyUrl}
+              className="h-9 px-2.5 flex-shrink-0 gap-1 text-xs"
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-green-500" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+              <span>{copied ? "Copied" : "Copy"}</span>
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-300">
+            Save this automation once to generate its unique webhook URL.
+          </div>
+        )}
+      </div>
+
+      {/* Secret Token */}
+      <div>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="block text-xs font-medium text-muted-foreground">
+            Secret Token (Optional)
+          </label>
+          <button
+            type="button"
+            onClick={generateSecret}
+            className="text-[11px] text-primary hover:underline"
+          >
+            Generate Secret
+          </button>
+        </div>
+        <Input
+          value={secret}
+          onChange={(e) => onChange({ ...config, secret: e.target.value })}
+          placeholder="Leave blank for open webhook, or enter secret"
+          className="bg-muted text-xs text-foreground font-mono"
+        />
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Passed as header{" "}
+          <code className="font-mono text-foreground">
+            x-webhook-secret: &lt;token&gt;
+          </code>{" "}
+          or query{" "}
+          <code className="font-mono text-foreground">
+            ?secret=&lt;token&gt;
+          </code>.
+        </p>
+      </div>
+
+      {/* JSON Payload Data */}
+      <div className="rounded-md border border-border bg-card/60 p-2.5 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+            JSON Format Data
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            Paste sample JSON below
+          </span>
+        </div>
+        <Textarea
+          value={jsonText}
+          onChange={(e) => handleJsonChange(e.target.value)}
+          placeholder='{\n  "phone": "919876543210",\n  "name": "John Doe",\n  "order_id": "ORD-1234"\n}'
+          rows={5}
+          className="font-mono text-xs bg-muted text-foreground resize-y leading-tight"
+        />
+        {jsonError && (
+          <p className="text-[11px] text-destructive">{jsonError}</p>
+        )}
+
+        {extractedKeys.length > 0 && (
+          <div className="pt-1">
+            <span className="text-[11px] font-medium text-muted-foreground block mb-1">
+              Available variables (click to copy):
+            </span>
+            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+              {extractedKeys.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`{{ vars.webhook.${k} }}`)
+                    toast.success(`Copied {{ vars.webhook.${k} }}!`)
+                  }}
+                  className="rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 px-1.5 py-0.5 text-[10px] font-mono transition-colors"
+                  title="Click to copy variable token"
+                >
+                  + {k}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Variable Reference */}
+      <div className="rounded border border-border bg-muted/40 p-2 text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground">Using Webhook Variables</p>
+        <p className="text-[11px]">
+          All JSON properties are available in any message step via:
+        </p>
+        <code className="block rounded bg-background p-1 font-mono text-[11px] text-primary">
+          {"{{ vars.webhook.<field_name> }}"}
+        </code>
+      </div>
+
+      {/* Test cURL Command */}
+      {automationId && (
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              Test via Terminal
+            </span>
+            <button
+              type="button"
+              onClick={copyCurl}
+              className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+            >
+              {copiedCurl ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+              <span>{copiedCurl ? "Copied" : "Copy cURL"}</span>
+            </button>
+          </div>
+          <pre className="overflow-x-auto rounded bg-muted/80 p-2 font-mono text-[10px] text-muted-foreground whitespace-pre-wrap">
+            {testCurl}
+          </pre>
+        </div>
+      )}
     </div>
   )
 }
@@ -1305,14 +2384,24 @@ function StepEditor({
   switch (step.step_type) {
     case "send_message":
       return (
-        <FieldBlock label={t("config.messageText")}>
-          <Textarea
-            value={(cfg.text as string) ?? ""}
-            onChange={(e) => set({ text: e.target.value })}
-            placeholder={t("config.placeholderMessageText")}
-            className="min-h-24 bg-muted text-foreground"
-          />
-        </FieldBlock>
+        <div className="space-y-3">
+          <FieldBlock label="Recipient Contact Number (Optional)">
+            <Input
+              value={(cfg.recipient_phone as string) ?? ""}
+              onChange={(e) => set({ recipient_phone: e.target.value })}
+              placeholder="Default: {{ contact.phone }}"
+              className="bg-muted text-xs text-foreground font-mono"
+            />
+          </FieldBlock>
+          <FieldBlock label={t("config.messageText")}>
+            <Textarea
+              value={(cfg.text as string) ?? ""}
+              onChange={(e) => set({ text: e.target.value })}
+              placeholder={t("config.placeholderMessageText")}
+              className="min-h-24 bg-muted text-foreground"
+            />
+          </FieldBlock>
+        </div>
       )
     case "send_buttons":
     case "send_list":
@@ -1329,8 +2418,7 @@ function StepEditor({
     case "send_template":
       return (
         <SendTemplateFields
-          templateName={(cfg.template_name as string) ?? ""}
-          language={(cfg.language as string) ?? ""}
+          config={cfg as unknown as SendTemplateStepConfig}
           onChange={(patch) => set(patch)}
           t={t}
         />

@@ -39,6 +39,22 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Button / List Reply',
     pillClass: 'border-pink-500/30 bg-pink-500/10 text-pink-300',
   },
+  google_sheet_row_added: {
+    label: 'Sheet Row Added',
+    pillClass: 'border-green-500/30 bg-green-500/10 text-green-300',
+  },
+  google_sheet_row_updated: {
+    label: 'Sheet Row Updated',
+    pillClass: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300',
+  },
+  google_sheet_row_added_or_updated: {
+    label: 'Sheet Row Added / Updated',
+    pillClass: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  },
+  webhook_received: {
+    label: 'Webhook Listener',
+    pillClass: 'border-violet-500/30 bg-violet-500/10 text-violet-300',
+  },
 }
 
 export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {

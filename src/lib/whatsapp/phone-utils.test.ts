@@ -162,3 +162,45 @@ describe("isRecipientNotAllowedError", () => {
     expect(isRecipientNotAllowedError("")).toBe(false);
   });
 });
+
+describe("cleanPhoneForWhatsApp", () => {
+  it("prepends country code 91 to 10-digit Indian numbers", () => {
+    expect(sanitizePhoneForMeta("8359847846")).toBe("918359847846");
+    expect(sanitizePhoneForMeta(8359847846)).toBe("918359847846");
+  });
+
+  it("cleans numbers with leading domestic trunk 0", () => {
+    expect(sanitizePhoneForMeta("08359847846")).toBe("918359847846");
+  });
+
+  it("cleans numbers with international exit prefix 00", () => {
+    expect(sanitizePhoneForMeta("00918359847846")).toBe("918359847846");
+  });
+
+  it("cleans numbers formatted with spaces, dashes, and +", () => {
+    expect(sanitizePhoneForMeta("+91 83598 47846")).toBe("918359847846");
+    expect(sanitizePhoneForMeta("+91-83598-47846")).toBe("918359847846");
+    expect(sanitizePhoneForMeta("+91 (835) 984-7846")).toBe("918359847846");
+  });
+
+  it("strips spreadsheet float .0 suffixes", () => {
+    expect(sanitizePhoneForMeta("8359847846.0")).toBe("918359847846");
+    expect(sanitizePhoneForMeta("918359847846.0")).toBe("918359847846");
+  });
+
+  it("strips trunk 0 after country code 910", () => {
+    expect(sanitizePhoneForMeta("9108359847846")).toBe("918359847846");
+  });
+
+  it("preserves other international numbers with + intact", () => {
+    expect(sanitizePhoneForMeta("+1 (415) 555-1212")).toBe("14155551212");
+    expect(sanitizePhoneForMeta("+44 7911 123456")).toBe("447911123456");
+  });
+
+  it("matches numbers across messy formats with phonesMatch", () => {
+    expect(phonesMatch("8359847846", "+91 83598 47846")).toBe(true);
+    expect(phonesMatch("08359847846", "918359847846")).toBe(true);
+    expect(phonesMatch("8359847846.0", "8359847846")).toBe(true);
+  });
+});
+

@@ -550,3 +550,43 @@ describe("triggerMatches — keyword_match", () => {
     expect(on(automation({ keywords: ["hi"], match_type: "word" }), "")).toBe(false);
   });
 });
+
+describe("interpolate", () => {
+  it("interpolates nested webhook variables", async () => {
+    const { interpolate } = await import("./engine");
+    const payload = [
+      {
+        body: {
+          event: "order.paid",
+          orderId: "ORD-1234",
+          buyer: { name: "yuvraj", phone: "+918359847846" },
+          amount: 1499,
+        },
+      },
+    ];
+
+    const args = {
+      automation: { id: "a1", account_id: "acc1", user_id: "u1" },
+      contactId: "c1",
+      startPosition: 0,
+      parentStepId: null,
+      branch: null,
+      logId: null,
+      triggerEvent: "webhook_received",
+      context: {
+        vars: {
+          webhook: payload[0],
+          raw_webhook: payload,
+          ...payload[0],
+          ...payload[0].body,
+        },
+      },
+    } as any;
+
+    expect(interpolate("{{ vars.webhook.body.buyer.name }}", args)).toBe("yuvraj");
+    expect(interpolate("{{ vars.body.buyer.name }}", args)).toBe("yuvraj");
+    expect(interpolate("{{ vars.buyer.name }}", args)).toBe("yuvraj");
+    expect(interpolate("{{ vars.orderId }}", args)).toBe("ORD-1234");
+  });
+});
+

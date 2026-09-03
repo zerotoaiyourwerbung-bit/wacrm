@@ -1,28 +1,90 @@
 /**
- * Sanitize phone number for Meta WhatsApp API.
- * Meta requires digits only — no + prefix, no spaces, no dashes.
- * e.g. "+370 63949836" → "37063949836"
+ * Intelligent phone number cleaner for Meta WhatsApp API.
+ * Meta requires digits only with international country code (E.164 without '+').
+ *
+ * Automatically handles:
+ * - Stripping +, spaces, brackets, dashes, dots, and float artifacts (e.g. "918359847846.0")
+ * - Stripping international exit prefix "00" (e.g. "00918359847846" → "918359847846")
+ * - Stripping domestic trunk prefix 0 (e.g. "08359847846" → "918359847846")
+ * - Stripping trunk 0 after country code (e.g. "9108359847846" → "918359847846")
+ * - Prepending default country code (default: '91' for India) when a 10-digit mobile number is given without country code
+ *   (e.g. "8359847846" → "918359847846")
+ * - Preserving already-valid international numbers (e.g. "+1 (415) 555-1212" → "14155551212")
  */
-export function sanitizePhoneForMeta(phone: string): string {
-  if (!phone) return ''
-  return phone.replace(/\D/g, '')
+export function cleanPhoneForWhatsApp(
+  input: string | number | null | undefined,
+  defaultCountryCode = '91'
+): string {
+  if (input === null || input === undefined) return ''
+  let str = String(input).trim()
+  if (!str) return ''
+
+  // 1. Strip spreadsheet float artifacts (e.g. "918359847846.0" from CSVs or numeric JSON)
+  if (/\.\d+$/.test(str)) {
+    str = str.replace(/\.\d+$/, '')
+  }
+
+  // Detect explicit international format (+ prefix)
+  const hasLeadingPlus = str.startsWith('+')
+
+  // 2. Keep digits only
+  let digits = str.replace(/\D/g, '')
+  if (!digits) return ''
+
+  // 3. Strip international dial exit code "00" (e.g. "00918359847846" -> "918359847846")
+  if (digits.startsWith('00') && digits.length >= 10) {
+    digits = digits.slice(2)
+  }
+
+  // 4. Strip domestic trunk 0 for 11-digit numbers (e.g. "08359847846" -> "8359847846")
+  if (digits.startsWith('0') && digits.length === 11) {
+    digits = digits.slice(1)
+  }
+
+  // 5. Prepend default country code if 10-digit number without explicit + (e.g. "8359847846" -> "918359847846")
+  if (digits.length === 10 && !hasLeadingPlus) {
+    const cc = defaultCountryCode.replace(/\D/g, '')
+    digits = `${cc}${digits}`
+  }
+
+  // 6. Handle country code followed by trunk 0 (e.g. "9108359847846" -> 13 digits: "91" + "0" + 10-digit number)
+  if (digits.startsWith('910') && digits.length === 13) {
+    digits = `91${digits.slice(3)}`
+  }
+
+  return digits
 }
 
 /**
- * Normalize phone number by removing all non-digit characters.
+ * Sanitize phone number for Meta WhatsApp API.
+ * Delegates to cleanPhoneForWhatsApp.
+ */
+export function sanitizePhoneForMeta(
+  phone: string | number | null | undefined,
+  defaultCountryCode = '91'
+): string {
+  return cleanPhoneForWhatsApp(phone, defaultCountryCode)
+}
+
+/**
+ * Normalize phone number to canonical Meta-ready format.
  * Used for comparing phone numbers in different formats.
  */
 export function normalizePhone(phone: string): string {
-  if (!phone) return ''
-  return phone.replace(/\D/g, '')
+  return cleanPhoneForWhatsApp(phone)
 }
 
 /**
  * Compare two phone numbers accounting for trunk prefix differences.
  * e.g. "370063949836" (with trunk 0) matches "37063949836" (without trunk 0)
- * by comparing the last 8 digits.
+ * by comparing the last 8 digits, or by cleaned phone equivalence.
  */
 export function phonesMatch(phone1: string, phone2: string): boolean {
+  if (!phone1 || !phone2) return false
+  const c1 = cleanPhoneForWhatsApp(phone1)
+  const c2 = cleanPhoneForWhatsApp(phone2)
+  if (c1 === c2) return true
+
   const n1 = normalizePhone(phone1)
   const n2 = normalizePhone(phone2)
   if (n1 === n2) return true
@@ -43,23 +105,6 @@ export function isValidE164(phone: string): boolean {
 /**
  * Generate plausible phone number variants for retry when Meta's
  * sandbox rejects a number with error #131030 ("not in allowed list").
- *
- * Many countries use a "trunk prefix" 0 for domestic dialing that is
- * meant to be dropped in international format (e.g. Lithuanian
- * "+370 063 949 836" domestically → "+370 63 949 836" international).
- * But some sandboxes register the number with the trunk 0 included,
- * causing sends to the correct international format to fail.
- *
- * This helper yields up to 3 variants:
- *   1. The original sanitized number (first attempt)
- *   2. With a trunk 0 inserted after the country code
- *   3. With a trunk 0 removed after the country code
- *
- * Country-code lengths of 1, 2, and 3 digits are tried because we
- * don't know the user's country ahead of time.
- *
- * @param sanitized - digits-only phone number (from sanitizePhoneForMeta)
- * @returns deduplicated list of variants, original first
  */
 export function phoneVariants(sanitized: string): string[] {
   if (!sanitized) return []
