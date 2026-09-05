@@ -90,7 +90,7 @@ export async function sweepAbandonedFlowRuns(): Promise<void> {
     const admin = flowAdminClient()
     const { data: activeRuns, error } = await admin
       .from('flow_runs')
-      .select('id, flow_id, current_step_id, updated_at, flows(fallback_policy)')
+      .select('id, flow_id, current_node_key, last_advanced_at, flows(fallback_policy)')
       .eq('status', 'active')
       .limit(100)
 
@@ -101,14 +101,15 @@ export async function sweepAbandonedFlowRuns(): Promise<void> {
       const flow = Array.isArray(run.flows) ? run.flows[0] : run.flows
       const policy = resolveFallbackPolicy(flow?.fallback_policy)
       const timeoutMs = policy.on_timeout_hours * 3600_000
-      const lastActive = new Date(run.updated_at).getTime()
+      const lastActive = new Date(run.last_advanced_at).getTime()
 
       if (now - lastActive > timeoutMs) {
         await admin
           .from('flow_runs')
           .update({
             status: 'timed_out',
-            updated_at: new Date().toISOString(),
+            ended_at: new Date().toISOString(),
+            end_reason: 'stale_sweep',
           })
           .eq('id', run.id)
       }
