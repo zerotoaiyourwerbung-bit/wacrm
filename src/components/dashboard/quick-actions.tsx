@@ -18,10 +18,10 @@ interface Action {
 }
 
 const ACTIONS: Action[] = [
-  { labelKey: 'newContact', href: '/contacts', icon: UserPlus, tint: 'text-primary' },
-  { labelKey: 'newDeal', href: '/pipelines', icon: Briefcase, tint: 'text-blue-400' },
-  { labelKey: 'newBroadcast', href: '/broadcasts/new', icon: Radio, tint: 'text-amber-400' },
-  { labelKey: 'newAutomation', href: '/automations/new', icon: Zap, tint: 'text-primary' },
+  { labelKey: 'newContact', href: '/contacts', icon: UserPlus, tint: 'text-emerald-700 bg-emerald-50' },
+  { labelKey: 'newDeal', href: '/pipelines', icon: Briefcase, tint: 'text-blue-700 bg-blue-50' },
+  { labelKey: 'newBroadcast', href: '/broadcasts/new', icon: Radio, tint: 'text-amber-800 bg-amber-50' },
+  { labelKey: 'newAutomation', href: '/automations/new', icon: Zap, tint: 'text-emerald-700 bg-emerald-50' },
 ]
 
 export function QuickActions() {
@@ -35,12 +35,12 @@ export function QuickActions() {
           <Link
             key={a.href}
             href={a.href}
-            className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:border-border hover:bg-muted/60"
+            className="group flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:border-emerald-200 hover:bg-[#F4F7F5]"
           >
-            <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-muted ${a.tint}`}>
+            <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${a.tint}`}>
               <Icon className="h-4 w-4" />
             </div>
-            <span className="text-sm font-medium text-foreground">{t(a.labelKey as string)}</span>
+            <span className="text-sm font-semibold text-foreground">{t(a.labelKey as string)}</span>
           </Link>
         )
       })}

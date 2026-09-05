@@ -265,10 +265,10 @@ export function ContactForm({
             />
             {dupMatch ? (
               <div
-                className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs ${
+                className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs font-medium ${
                   dupMatch.exact
-                    ? 'border-red-500/40 bg-red-500/10 text-red-300'
-                    : 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                    ? 'border-red-300 bg-red-50 text-red-800'
+                    : 'border-amber-300 bg-amber-50 text-amber-800'
                 }`}
               >
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />

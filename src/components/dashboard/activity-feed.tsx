@@ -31,11 +31,11 @@ interface KindTheme {
 }
 
 const KIND_THEME: Record<ActivityKind, KindTheme> = {
-  message: { icon: MessageSquare, badge: 'bg-blue-500/10 text-blue-400' },
-  contact: { icon: UserPlus, badge: 'bg-primary/10 text-primary' },
-  deal: { icon: Briefcase, badge: 'bg-primary/10 text-primary' },
-  broadcast: { icon: Radio, badge: 'bg-amber-500/10 text-amber-400' },
-  automation: { icon: Zap, badge: 'bg-rose-500/10 text-rose-400' },
+  message: { icon: MessageSquare, badge: 'bg-blue-50 text-blue-700 border border-blue-200/60' },
+  contact: { icon: UserPlus, badge: 'bg-emerald-50 text-emerald-800 border border-emerald-200/60' },
+  deal: { icon: Briefcase, badge: 'bg-emerald-50 text-emerald-800 border border-emerald-200/60' },
+  broadcast: { icon: Radio, badge: 'bg-amber-50 text-amber-800 border border-amber-200/60' },
+  automation: { icon: Zap, badge: 'bg-rose-50 text-rose-700 border border-rose-200/60' },
 }
 
 import { useTranslations } from 'next-intl'
@@ -57,7 +57,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
     i === 0 || totalLoaded > PAGE_SIZES[i - 1]
 
   return (
-    <section className="rounded-xl border border-border bg-card">
+    <section className="rounded-lg border border-border bg-card">
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
         <Link

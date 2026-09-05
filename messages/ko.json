@@ -228,7 +228,11 @@
       "downloadFailed": "첨부파일을 다운로드할 수 없습니다",
       "viewImage": "이미지 보기",
       "expandVideo": "동영상 확대",
-      "imageAlt": "공유된 이미지"
+      "imageAlt": "공유된 이미지",
+      "notDelivered": "전송 실패",
+      "deliveryFailedDefault": "WhatsApp에서 이 메시지를 전송할 수 없습니다. 수신자가 연락이 닿지 않거나 24시간 메시징 창이 닫혔을 수 있습니다.",
+      "retry": "재시도",
+      "retrying": "재시도 중..."
     },
     "mediaViewer": {
       "counter": "{total}개 중 {index}번째",

@@ -91,6 +91,12 @@ interface WhatsAppWebhookEntry {
         status: string
         timestamp: string
         recipient_id: string
+        errors?: Array<{
+          code: number
+          title?: string
+          message?: string
+          error_data?: { details?: string }
+        }>
       }>
     }
     field: string
@@ -364,23 +370,58 @@ function isValidStatusTransition(current: string, incoming: string): boolean {
   return ii > ci
 }
 
+function formatMetaStatusErrors(errors?: Array<{
+  code: number
+  title?: string
+  message?: string
+  error_data?: { details?: string }
+}>): string | null {
+  if (!errors || errors.length === 0) return null
+  return errors
+    .map((e) => {
+      const detail = e.error_data?.details || e.message || e.title
+      if (detail) return `${detail} (code ${e.code})`
+      return `Error code ${e.code}`
+    })
+    .join('; ')
+}
+
 async function handleStatusUpdate(status: {
   id: string
   status: string
   timestamp: string
   recipient_id: string
+  errors?: Array<{
+    code: number
+    title?: string
+    message?: string
+    error_data?: { details?: string }
+  }>
 }) {
+  const errorReason = status.status === 'failed' ? formatMetaStatusErrors(status.errors) : null
+
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
-  //    already match the CHECK constraint on messages.status. No
-  //    `.select()`: message_id is NOT unique (migration 009 — Meta ids
-  //    repeat across numbers), so this updates 0..N rows and must not
-  //    assume a single row.
-  const { error: msgErr } = await supabaseAdmin()
+  //    already match the CHECK constraint on messages.status.
+  const msgUpdatePayload: Record<string, unknown> = { status: status.status }
+  if (errorReason) {
+    msgUpdatePayload.error_message = errorReason
+  }
+
+  let { error: msgErr } = await supabaseAdmin()
     .from('messages')
-    .update({ status: status.status })
+    .update(msgUpdatePayload)
     .eq('message_id', status.id)
 
-  if (msgErr) {
+  // If error_message column isn't present yet on remote messages table, retry with status only
+  if (msgErr && msgUpdatePayload.error_message) {
+    const { error: fallbackErr } = await supabaseAdmin()
+      .from('messages')
+      .update({ status: status.status })
+      .eq('message_id', status.id)
+    if (fallbackErr) {
+      console.error('Error updating message status:', fallbackErr)
+    }
+  } else if (msgErr) {
     console.error('Error updating message status:', msgErr)
   }
 
@@ -412,6 +453,7 @@ async function handleStatusUpdate(status: {
     if (status.status === 'sent' && !('sent_at' in update)) update.sent_at = tsIso
     if (status.status === 'delivered') update.delivered_at = tsIso
     if (status.status === 'read') update.read_at = tsIso
+    if (status.status === 'failed' && errorReason) update.error_message = errorReason
 
     const { error: recUpdateErr } = await supabaseAdmin()
       .from('broadcast_recipients')

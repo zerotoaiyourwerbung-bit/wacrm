@@ -1,188 +1,55 @@
 "use client";
 
-import { Check, Moon, Palette, SunMoon, Sun } from "lucide-react";
-
-import { useTheme } from "@/hooks/use-theme";
-import { MODES, THEMES, type Mode, type ThemeId } from "@/lib/themes";
-import { cn } from "@/lib/utils";
-import { useTranslations } from "next-intl";
+import { Check, Palette } from "lucide-react";
 import { SettingsPanelHead } from "./settings-panel-head";
 
-/**
- * Appearance panel — light/dark mode + accent-color picker.
- *
- * Two independent controls: a mode toggle (light / dark) and the
- * accent grid. Either applies + persists immediately. No save button:
- * each change is a single attribute swap on <html>, there's nothing
- * to roll back.
- *
- * Persistence: localStorage only (device-scoped). The boot script in
- * layout.tsx replays both choices before first paint on subsequent
- * loads.
- */
 export function AppearancePanel() {
-  const { theme, setTheme, mode, setMode } = useTheme();
-  const t = useTranslations("Settings.appearance");
-
   return (
     <section className="max-w-3xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead
-        title={t("title")}
-        description={t("description")}
+        title="Appearance & Theme"
+        description="Your CRM is configured with the bespoke Vizora Forest-Green & Crisp Light theme."
       />
 
-      <div className="space-y-4">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <SunMoon className="size-4 text-muted-foreground" />
-          {t("mode")}
-        </h3>
-
-        <div
-          role="radiogroup"
-          aria-label="Color mode"
-          className="grid max-w-md grid-cols-2 gap-3"
-        >
-          {MODES.map((m) => (
-            <ModeCard
-              key={m}
-              mode={m}
-              isActive={m === mode}
-              onPick={() => setMode(m)}
-            />
-          ))}
+      <div className="rounded-xl border border-[#E5EAE7] bg-white p-6 shadow-xs">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700">
+              <Palette className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-gray-900">
+                Vizora Forest-Green & Crisp Light
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Deep pine forest navigation with high-contrast light workspace and emerald accents.
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 text-xs font-bold text-emerald-700">
+            <Check className="size-3.5" />
+            <span>Active System Theme</span>
+          </span>
         </div>
-      </div>
 
-      <div className="mt-8 space-y-4">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <Palette className="size-4 text-muted-foreground" />
-          {t("accentColor")}
-        </h3>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {THEMES.map((tObj) => (
-            <ThemeCard
-              key={tObj.id}
-              id={tObj.id}
-              name={tObj.name}
-              tagline={tObj.tagline}
-              swatch={tObj.swatch}
-              isActive={tObj.id === theme}
-              onPick={() => setTheme(tObj.id)}
-            />
-          ))}
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 pt-5 border-t border-gray-100 text-xs">
+          <div className="rounded-lg bg-[#0C2B24] p-3 text-white">
+            <span className="text-[10px] font-semibold text-emerald-300 uppercase tracking-wider">Sidebar</span>
+            <p className="mt-1 font-bold text-sm">#0C2B24</p>
+            <p className="text-[11px] text-[#8FA8A0]">Deep Pine Green</p>
+          </div>
+          <div className="rounded-lg bg-[#F4F7F5] p-3 text-gray-800 border border-[#E4E9E6]">
+            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Canvas</span>
+            <p className="mt-1 font-bold text-sm">#F4F7F5</p>
+            <p className="text-[11px] text-gray-500">Soft Crisp Off-White</p>
+          </div>
+          <div className="rounded-lg bg-emerald-500 p-3 text-white">
+            <span className="text-[10px] font-semibold text-emerald-100 uppercase tracking-wider">Accent</span>
+            <p className="mt-1 font-bold text-sm">#10B981</p>
+            <p className="text-[11px] text-emerald-100">Vibrant Mint</p>
+          </div>
         </div>
       </div>
     </section>
-  );
-}
-
-function ModeCard({
-  mode,
-  isActive,
-  onPick,
-}: {
-  mode: Mode;
-  isActive: boolean;
-  onPick: () => void;
-}) {
-  const t = useTranslations("Settings.appearance");
-  const isLight = mode === "light";
-  const Icon = isLight ? Sun : Moon;
-  return (
-    <button
-      type="button"
-      role="radio"
-      onClick={onPick}
-      aria-checked={isActive}
-      aria-label={t("useMode", { mode })}
-      className={cn(
-        "flex items-center gap-3 rounded-lg border bg-card p-4 text-left transition-colors",
-        isActive
-          ? "border-primary/60 ring-2 ring-primary/40"
-          : "border-border hover:border-border hover:bg-muted/40",
-      )}
-    >
-      <span
-        aria-hidden
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground"
-      >
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="flex-1 text-sm font-semibold capitalize text-foreground">
-        {mode}
-      </span>
-      {isActive && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
-          <Check className="h-3 w-3" />
-          {t("active")}
-        </span>
-      )}
-    </button>
-  );
-}
-
-function ThemeCard({
-  id,
-  name,
-  tagline,
-  swatch,
-  isActive,
-  onPick,
-}: {
-  id: ThemeId;
-  name: string;
-  tagline: string;
-  swatch: string;
-  isActive: boolean;
-  onPick: () => void;
-}) {
-  const t = useTranslations("Settings.appearance");
-  return (
-    <button
-      type="button"
-      onClick={onPick}
-      aria-pressed={isActive}
-      aria-label={t("useTheme", { name })}
-      className={cn(
-        "flex flex-col gap-3 rounded-lg border bg-card p-4 text-left transition-colors",
-        isActive
-          ? "border-primary/60 ring-2 ring-primary/40"
-          : "border-border hover:border-border hover:bg-muted/40",
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <span
-          aria-hidden
-          className="h-8 w-8 shrink-0 rounded-full"
-          style={{
-            background: swatch,
-            boxShadow: "inset 0 0 0 1px oklch(1 0 0 / 0.15)",
-          }}
-        />
-        {isActive && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
-            <Check className="h-3 w-3" />
-            {t("active")}
-          </span>
-        )}
-      </div>
-      <div>
-        <div className="text-sm font-semibold text-foreground">{name}</div>
-        <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          {tagline}
-        </div>
-      </div>
-      <div
-        className="mt-1 flex h-2 overflow-hidden rounded-full"
-        aria-hidden
-      >
-        <span className="flex-1" style={{ background: swatch }} />
-        <span className="w-3 bg-muted-foreground/60" />
-        <span className="w-3 bg-muted" />
-        <span className="w-3 bg-card" />
-      </div>
-      <span className="sr-only">Theme id: {id}</span>
-    </button>
   );
 }

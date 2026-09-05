@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast, BroadcastRecipient, RecipientStatus } from '@/types';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -589,6 +590,7 @@ export default function BroadcastDetailPage() {
                   <TableHead className="text-muted-foreground">{t('table.delivered')}</TableHead>
                   <TableHead className="text-muted-foreground">{t('table.read')}</TableHead>
                   <TableHead className="text-muted-foreground">{t('table.error')}</TableHead>
+                  <TableHead className="text-right text-muted-foreground">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -624,8 +626,32 @@ export default function BroadcastDetailPage() {
                           ? new Date(recipient.read_at).toLocaleString()
                           : '-'}
                       </TableCell>
-                      <TableCell className="max-w-xs truncate text-xs text-red-400">
-                        {recipient.error_message ?? '-'}
+                      <TableCell
+                        className="max-w-xs text-xs"
+                        title={recipient.error_message ?? undefined}
+                      >
+                        {recipient.error_message ? (
+                          <span className="inline-block max-w-full truncate rounded bg-rose-50 px-2 py-0.5 font-medium text-rose-700 border border-rose-200">
+                            {recipient.error_message}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {recipient.status === 'failed' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleResume('failed')}
+                            disabled={resumingScope !== null}
+                            className="h-7 border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 text-xs gap-1 font-medium"
+                            title="Retry sending to failed recipients"
+                          >
+                            <RotateCcw className={cn("h-3 w-3", resumingScope === 'failed' && "animate-spin")} />
+                            Retry
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

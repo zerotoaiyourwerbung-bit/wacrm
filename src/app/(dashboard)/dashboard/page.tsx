@@ -33,6 +33,8 @@ import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { DashboardPlanCard } from '@/components/dashboard/dashboard-plan-card'
+import { DashboardTableCard } from '@/components/dashboard/dashboard-table-card'
 
 import { useTranslations } from 'next-intl'
 
@@ -213,6 +215,16 @@ export default function DashboardPage() {
             loading={pipelineLoading}
             currency={defaultCurrency}
           />
+        </div>
+      </div>
+
+      {/* Bottom Row matching Vizora reference: Plan / Promo Card + Table Card */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 items-stretch">
+        <div className="h-full lg:col-span-2">
+          <DashboardPlanCard />
+        </div>
+        <div className="h-full lg:col-span-3">
+          <DashboardTableCard />
         </div>
       </div>
 

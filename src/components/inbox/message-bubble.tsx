@@ -11,6 +11,8 @@ import {
   LayoutTemplate,
   CornerDownLeft,
   Sparkles,
+  AlertCircle,
+  RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
@@ -38,18 +40,22 @@ interface MessageBubbleProps {
    * stays inline and non-clickable.
    */
   onOpenMedia?: (messageId: string) => void;
+  /** Callback to re-send this failed message */
+  onRetry?: (message: Message) => void;
+  /** True while retry send is in progress for this message */
+  isRetrying?: boolean;
 }
 
 function StatusIcon({ status }: { status: Message["status"] }) {
   switch (status) {
     case "sending":
-      return <Clock className="h-3 w-3 text-muted-foreground" />;
+      return <Clock className="h-3 w-3 text-primary-foreground/75" />;
     case "sent":
-      return <Check className="h-3 w-3 text-muted-foreground" />;
+      return <Check className="h-3 w-3 text-primary-foreground/75" />;
     case "delivered":
-      return <CheckCheck className="h-3 w-3 text-muted-foreground" />;
+      return <CheckCheck className="h-3 w-3 text-primary-foreground/75" />;
     case "read":
-      return <CheckCheck className="h-3 w-3 text-blue-400" />;
+      return <CheckCheck className="h-3 w-3 text-emerald-300" />;
     case "failed":
       return <XCircle className="h-3 w-3 text-red-400" />;
     default:
@@ -222,6 +228,8 @@ export function MessageBubble({
   currentUserId,
   onToggleReaction,
   onOpenMedia,
+  onRetry,
+  isRetrying,
 }: MessageBubbleProps) {
   const t = useTranslations("Inbox.bubble");
 
@@ -239,10 +247,10 @@ export function MessageBubble({
     >
       <div
         className={cn(
-          "relative rounded-2xl px-3 py-2",
+          "relative rounded-xl px-3.5 py-2 shadow-xs transition-shadow",
           isAgent
-            ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md bg-muted text-foreground",
+            ? "rounded-br-xs bg-primary text-primary-foreground"
+            : "rounded-bl-xs bg-card text-foreground border border-border/80",
         )}
       >
         {reply && (
@@ -258,9 +266,43 @@ export function MessageBubble({
           isAgent={isAgent}
           onOpenMedia={onOpenMedia}
         />
+
+        {/* Failure reason banner + Retry button */}
+        {message.status === "failed" && (
+          <div className="mt-2.5 flex flex-col gap-2 rounded-lg border border-red-500/40 bg-red-950/50 p-2.5 text-xs text-red-100 shadow-inner">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-red-200">
+                  {t("notDelivered")}
+                </p>
+                <p className="text-[11px] leading-relaxed text-red-100/90 break-words mt-0.5">
+                  {message.error_message || t("deliveryFailedDefault")}
+                </p>
+              </div>
+            </div>
+            {onRetry && (
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRetry(message);
+                  }}
+                  disabled={isRetrying}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-red-500/30 hover:bg-red-500/45 active:bg-red-500/60 border border-red-400/50 px-3 py-1 text-xs font-semibold text-white transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  <RotateCcw className={cn("h-3.5 w-3.5", isRetrying && "animate-spin")} />
+                  <span>{isRetrying ? t("retrying") : t("retry")}</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div
           className={cn(
-            "mt-1 flex items-center gap-1",
+            "mt-1 flex items-center gap-1.5",
             isAgent ? "justify-end" : "justify-start",
           )}
         >
@@ -279,17 +321,17 @@ export function MessageBubble({
           )}
           <span
             className={cn(
-              "text-[10px]",
-              // Outbound bubbles sit on the primary fill, so the
-              // timestamp must read against that (not the neutral
-              // foreground) — otherwise it goes low-contrast in light
-              // mode. Inbound bubbles use the muted surface.
-              isAgent ? "text-primary-foreground/70" : "text-muted-foreground",
+              "text-[10px] font-medium",
+              isAgent ? "text-primary-foreground/75" : "text-slate-600",
             )}
           >
             {time}
           </span>
-          {isAgent && <StatusIcon status={message.status} />}
+          {isAgent && (
+            <span title={message.status === "failed" ? (message.error_message || t("notDelivered")) : undefined}>
+              <StatusIcon status={message.status} />
+            </span>
+          )}
         </div>
       </div>
       {reactions && reactions.length > 0 && onToggleReaction && (

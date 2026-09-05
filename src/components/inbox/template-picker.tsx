@@ -34,6 +34,8 @@ interface TemplatePickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (template: MessageTemplate, values: TemplateSendValues) => void;
+  initialTemplateName?: string | null;
+  initialValues?: TemplateSendValues | null;
 }
 
 function renderBodyPreview(body: string, params: string[]): string {
@@ -78,6 +80,8 @@ export function TemplatePicker({
   open,
   onOpenChange,
   onSelect,
+  initialTemplateName,
+  initialValues,
 }: TemplatePickerProps) {
   const t = useTranslations("Inbox.templatePicker");
 
@@ -122,7 +126,23 @@ export function TemplatePicker({
         console.error("Failed to fetch templates:", error);
         setTemplates([]);
       } else {
-        setTemplates((data as MessageTemplate[]) ?? []);
+        const loaded = (data as MessageTemplate[]) ?? [];
+        setTemplates(loaded);
+
+        if (initialTemplateName) {
+          const match = loaded.find((t) => t.name === initialTemplateName);
+          if (match) {
+            const slots = collectVariableSlots(match);
+            setSelected(match);
+            if (initialValues?.body && initialValues.body.length > 0) {
+              setParams(initialValues.body);
+            } else {
+              setParams(new Array(slots.bodyVars.length).fill(""));
+            }
+            setHeaderText(initialValues?.headerText ?? "");
+            setButtonParams(initialValues?.buttonParams ?? {});
+          }
+        }
       }
       setLoading(false);
     })();
@@ -130,7 +150,7 @@ export function TemplatePicker({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, initialTemplateName, initialValues]);
 
   function resetSelection() {
     setSelected(null);

@@ -26,51 +26,51 @@ export interface StatusDisplay {
 export const broadcastStatusConfig: Record<BroadcastStatus, StatusDisplay> = {
   draft: {
     label: "draft",
-    classes: "bg-slate-500/10 text-muted-foreground border-slate-500/20",
+    classes: "bg-slate-100 text-slate-700 border-slate-300 font-medium",
   },
   scheduled: {
     label: "scheduled",
-    classes: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    classes: "bg-sky-50 text-sky-800 border-sky-300 font-medium",
   },
   sending: {
     label: "sending",
-    classes: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    classes: "bg-amber-50 text-amber-800 border-amber-300 font-medium",
     pulse: true,
   },
   sent: {
     label: "sent",
-    classes: "bg-primary/10 text-primary border-primary/20",
+    classes: "bg-emerald-50 text-emerald-800 border-emerald-300 font-medium",
   },
   failed: {
     label: "failed",
-    classes: "bg-red-500/10 text-red-400 border-red-500/20",
+    classes: "bg-rose-50 text-rose-800 border-rose-300 font-medium",
   },
 };
 
 export const recipientStatusConfig: Record<RecipientStatus, StatusDisplay> = {
   pending: {
     label: "pending",
-    classes: "bg-slate-500/10 text-muted-foreground border-slate-500/20",
+    classes: "bg-slate-100 text-slate-700 border-slate-300 font-medium",
   },
   sent: {
     label: "sent",
-    classes: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    classes: "bg-sky-50 text-sky-800 border-sky-300 font-medium",
   },
   delivered: {
     label: "delivered",
-    classes: "bg-primary/10 text-primary border-primary/20",
+    classes: "bg-teal-50 text-teal-800 border-teal-300 font-medium",
   },
   read: {
     label: "read",
-    classes: "bg-primary/10 text-primary border-primary/20",
+    classes: "bg-emerald-50 text-emerald-800 border-emerald-300 font-medium",
   },
   replied: {
     label: "replied",
-    classes: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    classes: "bg-purple-50 text-purple-800 border-purple-300 font-medium",
   },
   failed: {
     label: "failed",
-    classes: "bg-red-500/10 text-red-400 border-red-500/20",
+    classes: "bg-rose-50 text-rose-800 border-rose-300 font-medium",
   },
 };
 

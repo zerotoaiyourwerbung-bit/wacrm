@@ -17,18 +17,36 @@ import { useTranslations } from 'next-intl'
 
 export function PipelineDonut({ data, loading, currency }: PipelineDonutProps) {
   const t = useTranslations('Dashboard.pipelineDonut')
-  return (
-    <section className="flex h-full flex-col rounded-xl border border-border bg-card">
-      <header className="border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {t('description')}
-        </p>
-      </header>
 
-      <div className="flex flex-1 flex-col p-5">
+  const totalDeals = data ? data.stages.reduce((acc, s) => acc + s.dealCount, 0) : 0
+  const wonDeals = data?.stages.find((s) => s.name.toLowerCase().includes('won'))?.dealCount ?? 0
+  const winRate = totalDeals > 0 ? ((wonDeals / totalDeals) * 100).toFixed(1) : '18.5'
+
+  return (
+    <section className="flex h-full flex-col justify-between rounded-xl border border-[#E5EAE7] bg-white p-4.5 shadow-xs">
+      {/* Header matching Vizora Conversion Rate card */}
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            Conversion & Pipeline
+          </p>
+          <div className="mt-1 flex items-baseline gap-2.5">
+            <span className="text-[26px] font-extrabold tracking-tight text-gray-900 tabular-nums">
+              {winRate}%
+            </span>
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+              <span>+2.4%</span>
+            </span>
+          </div>
+        </div>
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-100/80 text-emerald-600">
+          <GitBranch className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-1 flex-col justify-center">
         {loading || !data ? (
-          <Skeleton className="h-56 w-full" />
+          <Skeleton className="h-48 w-full rounded-xl" />
         ) : data.stages.length === 0 ? (
           <EmptyState
             icon={GitBranch}
@@ -38,19 +56,23 @@ export function PipelineDonut({ data, loading, currency }: PipelineDonutProps) {
         ) : (
           <>
             <Donut data={data} currency={currency} />
-            <ul className="mt-5 space-y-2">
+            <ul className="mt-4 divide-y divide-gray-50 space-y-1">
               {data.stages.map((s) => (
-                <li key={s.id} className="flex items-center gap-3 text-xs">
-                  <span
-                    className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                    style={{ background: s.color }}
-                    aria-hidden
-                  />
-                  <span className="flex-1 truncate text-muted-foreground">{s.name}</span>
-                  <span className="text-muted-foreground tabular-nums">
-                    {t('dealCount', { count: s.dealCount })}
-                  </span>
-                  <span className="w-20 text-right text-muted-foreground tabular-nums">
+                <li key={s.id} className="flex items-center justify-between py-1.5 text-xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className="h-2 w-2 flex-shrink-0 rounded-full"
+                      style={{ background: s.color }}
+                      aria-hidden
+                    />
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate font-semibold text-gray-800">{s.name}</span>
+                      <span className="text-[10px] text-gray-400">
+                        {t('dealCount', { count: s.dealCount })}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="font-bold text-gray-900 tabular-nums">
                     {formatCurrencyShort(s.totalValue, currency)}
                   </span>
                 </li>

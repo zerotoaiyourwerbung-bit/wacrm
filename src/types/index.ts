@@ -258,6 +258,19 @@ export interface Message {
    * badge in the inbox. Migration 033.
    */
   ai_generated?: boolean;
+  /**
+   * Failure reason returned by Meta (via status webhook or direct send API)
+   * or validation / network error when status is 'failed'.
+   */
+  error_message?: string | null;
+  /**
+   * Parameters used when sending a template message ({{1}}, {{2}}, ...).
+   */
+  template_params?: string[] | null;
+  /**
+   * Language code used for the template (e.g. en_US).
+   */
+  template_language?: string | null;
 }
 
 export type ReactionActor = 'customer' | 'agent';

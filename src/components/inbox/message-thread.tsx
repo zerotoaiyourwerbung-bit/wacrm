@@ -49,10 +49,11 @@ import {
   type SendMediaPayload,
 } from "./message-composer";
 import { deleteAccountMedia } from "@/lib/storage/upload-media";
-import { TemplatePicker } from "./template-picker";
+import { TemplatePicker, type TemplateSendValues } from "./template-picker";
 import { AiThreadBanner } from "./ai-thread-banner";
 import { buildReplyPreview } from "./reply-quote";
 import { renderTemplateBody } from "@/lib/whatsapp/template-body";
+import { extractVariableIndices } from "@/lib/whatsapp/template-validators";
 import { toast } from "sonner";
 
 interface ReplyDraft {
@@ -132,8 +133,8 @@ function groupMessagesByDate(messages: Message[]) {
 }
 
 const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string }[] = [
-  { label: "Open", value: "open", color: "text-primary" },
-  { label: "Pending", value: "pending", color: "text-amber-400" },
+  { label: "Open", value: "open", color: "text-emerald-700" },
+  { label: "Pending", value: "pending", color: "text-amber-800 font-medium" },
   { label: "Closed", value: "closed", color: "text-muted-foreground" },
 ];
 
@@ -173,6 +174,14 @@ export function MessageThread({
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
+  const [retryTemplateInitial, setRetryTemplateInitial] = useState<{
+    name: string;
+    values?: TemplateSendValues;
+  } | null>(null);
+  const templatePayloadsRef = useRef<
+    Map<string, { template: MessageTemplate; values: TemplateSendValues }>
+  >(new Map());
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
@@ -502,19 +511,19 @@ export function MessageThread({
           console.error("Failed to send message:", reason);
           toast.error(`Failed to send: ${reason}`);
           // Mark the optimistic bubble as failed so the user sees what happened
-          onUpdateMessage(tempId, { status: "failed" });
+          onUpdateMessage(tempId, { status: "failed", error_message: reason });
           return;
         }
 
         // Success — the realtime INSERT event will replace the temp bubble
         // with the real DB row. If realtime hasn't arrived yet, at least
         // flip status to 'sent' so the UI stops showing "sending".
-        onUpdateMessage(tempId, { status: "sent" });
+        onUpdateMessage(tempId, { status: "sent", error_message: null });
       } catch (err) {
         console.error("Failed to send message:", err);
         const reason = err instanceof Error ? err.message : "network error";
         toast.error(`Failed to send: ${reason}`);
-        onUpdateMessage(tempId, { status: "failed" });
+        onUpdateMessage(tempId, { status: "failed", error_message: reason });
       }
     },
     [conversation, onNewMessage, onUpdateMessage]
@@ -567,19 +576,19 @@ export function MessageThread({
           const reason = data?.error || `HTTP ${res.status}`;
           console.error("Failed to send media:", reason);
           toast.error(`Failed to send: ${reason}`);
-          onUpdateMessage(tempId, { status: "failed" });
+          onUpdateMessage(tempId, { status: "failed", error_message: reason });
           // The upload never reached the recipient — GC the orphaned
           // object rather than leaving it in the public bucket forever.
           void deleteAccountMedia(CHAT_MEDIA_BUCKET, payload.path).catch(() => {});
           return;
         }
 
-        onUpdateMessage(tempId, { status: "sent" });
+        onUpdateMessage(tempId, { status: "sent", error_message: null });
       } catch (err) {
         console.error("Failed to send media:", err);
         const reason = err instanceof Error ? err.message : "network error";
         toast.error(`Failed to send: ${reason}`);
-        onUpdateMessage(tempId, { status: "failed" });
+        onUpdateMessage(tempId, { status: "failed", error_message: reason });
         void deleteAccountMedia(CHAT_MEDIA_BUCKET, payload.path).catch(() => {});
       }
     },
@@ -624,16 +633,16 @@ export function MessageThread({
           const reason = data?.error || `HTTP ${res.status}`;
           console.error("Failed to send interactive message:", reason);
           toast.error(`Failed to send: ${reason}`);
-          onUpdateMessage(tempId, { status: "failed" });
+          onUpdateMessage(tempId, { status: "failed", error_message: reason });
           return;
         }
 
-        onUpdateMessage(tempId, { status: "sent" });
+        onUpdateMessage(tempId, { status: "sent", error_message: null });
       } catch (err) {
         console.error("Failed to send interactive message:", err);
         const reason = err instanceof Error ? err.message : "network error";
         toast.error(`Failed to send: ${reason}`);
-        onUpdateMessage(tempId, { status: "failed" });
+        onUpdateMessage(tempId, { status: "failed", error_message: reason });
       }
     },
     [conversation, onNewMessage, onUpdateMessage],
@@ -655,6 +664,7 @@ export function MessageThread({
   );
 
   const handleOpenTemplates = useCallback(() => {
+    setRetryTemplateInitial(null);
     setTemplateModalOpen(true);
   }, []);
 
@@ -666,23 +676,40 @@ export function MessageThread({
         headerText?: string;
         buttonParams?: Record<number, string>;
       },
+      retryTargetId?: string,
     ) => {
       if (!conversation) return;
 
       const renderedBody = renderTemplateBody(template.body_text, values.body);
-      const tempId = `temp-${Date.now()}`;
+      const targetId = retryTargetId || `temp-${Date.now()}`;
 
-      const optimisticMsg: Message = {
-        id: tempId,
-        conversation_id: conversation.id,
-        sender_type: "agent",
-        content_type: "template",
-        content_text: renderedBody,
-        template_name: template.name,
-        status: "sending",
-        created_at: new Date().toISOString(),
-      };
-      onNewMessage(optimisticMsg);
+      // Cache template definition + variable values for instant 1-click retry
+      templatePayloadsRef.current.set(targetId, { template, values });
+
+      if (retryTargetId) {
+        onUpdateMessage(retryTargetId, {
+          status: "sending",
+          content_text: renderedBody,
+          template_name: template.name,
+          template_params: values.body,
+          template_language: template.language,
+          error_message: null,
+        });
+      } else {
+        const optimisticMsg: Message = {
+          id: targetId,
+          conversation_id: conversation.id,
+          sender_type: "agent",
+          content_type: "template",
+          content_text: renderedBody,
+          template_name: template.name,
+          template_params: values.body,
+          template_language: template.language,
+          status: "sending",
+          created_at: new Date().toISOString(),
+        };
+        onNewMessage(optimisticMsg);
+      }
 
       try {
         const res = await fetch("/api/whatsapp/send", {
@@ -713,19 +740,141 @@ export function MessageThread({
           const reason = payload?.error || `HTTP ${res.status}`;
           console.error("Failed to send template:", reason);
           toast.error(`Failed to send template: ${reason}`);
-          onUpdateMessage(tempId, { status: "failed" });
+          onUpdateMessage(targetId, {
+            status: "failed",
+            error_message: reason,
+            template_params: values.body,
+            template_language: template.language,
+          });
           return;
         }
 
-        onUpdateMessage(tempId, { status: "sent" });
+        onUpdateMessage(targetId, { status: "sent", error_message: null });
+        if (retryTargetId) {
+          toast.success("Template resent successfully");
+        }
       } catch (err) {
         console.error("Failed to send template:", err);
         const reason = err instanceof Error ? err.message : "network error";
         toast.error(`Failed to send template: ${reason}`);
-        onUpdateMessage(tempId, { status: "failed" });
+        onUpdateMessage(targetId, {
+          status: "failed",
+          error_message: reason,
+          template_params: values.body,
+          template_language: template.language,
+        });
       }
     },
     [conversation, onNewMessage, onUpdateMessage],
+  );
+
+  const handleRetryMessage = useCallback(
+    async (msg: Message) => {
+      if (!conversation) return;
+      setRetryingMessageId(msg.id);
+
+      try {
+        if (msg.content_type === "template") {
+          // 1. Check in-memory payload cache for full structured parameters
+          const cached = templatePayloadsRef.current.get(msg.id);
+          if (cached) {
+            await handleSendTemplate(cached.template, cached.values, msg.id);
+            return;
+          }
+
+          // 2. If msg has template_name, look up template in DB
+          if (msg.template_name) {
+            const supabase = createClient();
+            const { data: tpl } = await supabase
+              .from("message_templates")
+              .select("*")
+              .eq("name", msg.template_name)
+              .maybeSingle();
+
+            if (tpl) {
+              const bodySlots = extractVariableIndices(tpl.body_text);
+              const headerSlots =
+                tpl.header_type === "text" && tpl.header_content
+                  ? extractVariableIndices(tpl.header_content).length
+                  : 0;
+
+              // If template needs 0 variables:
+              if (bodySlots.length === 0 && headerSlots === 0) {
+                await handleSendTemplate(tpl, { body: [] }, msg.id);
+                return;
+              }
+
+              // If template has variables and msg.template_params are stored:
+              if (msg.template_params && msg.template_params.length >= bodySlots.length) {
+                await handleSendTemplate(tpl, { body: msg.template_params }, msg.id);
+                return;
+              }
+
+              // Otherwise open template picker pre-selected
+              setRetryTemplateInitial({
+                name: tpl.name,
+                values: msg.template_params ? { body: msg.template_params } : undefined,
+              });
+              setTemplateModalOpen(true);
+              return;
+            }
+          }
+
+          // Fallback direct retry via /api/whatsapp/send
+          onUpdateMessage(msg.id, { status: "sending", error_message: null });
+          const res = await fetch("/api/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              conversation_id: conversation.id,
+              message_type: "template",
+              template_name: msg.template_name,
+              template_language: msg.template_language || "en_US",
+              template_params: msg.template_params || [],
+              content_text: msg.content_text,
+            }),
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const reason = payload?.error || `HTTP ${res.status}`;
+            toast.error(`Retry failed: ${reason}`);
+            onUpdateMessage(msg.id, { status: "failed", error_message: reason });
+          } else {
+            toast.success("Template resent successfully");
+            onUpdateMessage(msg.id, { status: "sent", error_message: null });
+          }
+        } else if (msg.content_type === "text" && msg.content_text) {
+          onUpdateMessage(msg.id, { status: "sending", error_message: null });
+          const res = await fetch("/api/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              conversation_id: conversation.id,
+              message_type: "text",
+              content_text: msg.content_text,
+            }),
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const reason = payload?.error || `HTTP ${res.status}`;
+            toast.error(`Retry failed: ${reason}`);
+            onUpdateMessage(msg.id, { status: "failed", error_message: reason });
+          } else {
+            toast.success("Message resent successfully");
+            onUpdateMessage(msg.id, { status: "sent", error_message: null });
+          }
+        } else {
+          toast.error("Retry is not supported for this message type");
+        }
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "Retry failed";
+        toast.error(`Retry error: ${reason}`);
+        onUpdateMessage(msg.id, { status: "failed", error_message: reason });
+      } finally {
+        setRetryingMessageId(null);
+      }
+    },
+    [conversation, handleSendTemplate, onUpdateMessage]
   );
 
   // Build a quick id → Message map so reply quotes can be rendered without
@@ -1145,6 +1294,8 @@ export function MessageThread({
                           currentUserId={user?.id}
                           onToggleReaction={handlePillToggle}
                           onOpenMedia={handleMediaChange}
+                          onRetry={handleRetryMessage}
+                          isRetrying={retryingMessageId === msg.id}
                         />
                       </MessageActions>
                     );
@@ -1186,8 +1337,13 @@ export function MessageThread({
 
       <TemplatePicker
         open={templateModalOpen}
-        onOpenChange={setTemplateModalOpen}
+        onOpenChange={(open) => {
+          setTemplateModalOpen(open);
+          if (!open) setRetryTemplateInitial(null);
+        }}
         onSelect={handleSendTemplate}
+        initialTemplateName={retryTemplateInitial?.name}
+        initialValues={retryTemplateInitial?.values}
       />
 
       {/* Full-size viewer for the thread's images/videos. Renders nothing

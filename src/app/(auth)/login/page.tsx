@@ -75,20 +75,20 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md border-border bg-card">
+    <div className="flex min-h-screen items-center justify-center bg-[#F4F7F5] px-4 py-12">
+      <Card className="w-full max-w-md border border-[#E5EAE7] bg-white shadow-xs p-2 sm:p-4 rounded-xl">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100/80 text-emerald-600 shadow-2xs">
             {inviteToken ? (
-              <UsersRound className="h-6 w-6 text-primary" />
+              <UsersRound className="h-7 w-7" />
             ) : (
-              <MessageSquare className="h-6 w-6 text-primary" />
+              <MessageSquare className="h-7 w-7" />
             )}
           </div>
-          <CardTitle className="text-xl text-foreground">
+          <CardTitle className="text-2xl font-bold tracking-tight text-gray-900">
             {inviteToken ? t('titleAccept') : t('titleWelcome')}
           </CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardDescription className="text-xs text-gray-500 font-medium">
             {inviteToken
               ? t('descAccept')
               : t('descWelcome')}
@@ -97,13 +97,13 @@ function LoginPageInner() {
         <CardContent>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             {error && (
-              <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">
                 {error}
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email" className="text-muted-foreground">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="email" className="text-xs font-semibold text-gray-700">
                 {t('emailLabel')}
               </Label>
               <Input
@@ -113,18 +113,18 @@ function LoginPageInner() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+                className="h-10 rounded-xl border-[#E4E9E6] bg-white text-gray-900 placeholder:text-gray-400 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
               />
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-muted-foreground">
+                <Label htmlFor="password" className="text-xs font-semibold text-gray-700">
                   {t('passwordLabel')}
                 </Label>
                 <Link
                   href="/forgot-password"
-                  className="text-sm text-primary hover:text-primary/80"
+                  className="text-xs font-semibold text-emerald-700 hover:text-emerald-800"
                 >
                   {t('forgotPassword')}
                 </Link>

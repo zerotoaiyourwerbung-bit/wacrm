@@ -468,23 +468,45 @@ export async function sendMessageToConversation(
           )
         : (contentText ?? null);
 
-  const { data: messageRecord, error: msgError } = await db
+  const baseRow = {
+    conversation_id: conversationId,
+    sender_type: 'agent',
+    content_type: messageType,
+    content_text: persistedText,
+    media_url: mediaUrl || null,
+    template_name: templateName || null,
+    interactive_payload:
+      messageType === 'interactive' ? interactivePayload : null,
+    message_id: waMessageId,
+    status: 'sent',
+    reply_to_message_id: replyToMessageId || null,
+  };
+
+  const extendedRow = {
+    ...baseRow,
+    template_params:
+      messageType === 'template'
+        ? (templateMessageParams?.body ?? templateParams ?? null)
+        : null,
+    template_language: messageType === 'template' ? sendLanguage : null,
+  };
+
+  let { data: messageRecord, error: msgError } = await db
     .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_type: 'agent',
-      content_type: messageType,
-      content_text: persistedText,
-      media_url: mediaUrl || null,
-      template_name: templateName || null,
-      interactive_payload:
-        messageType === 'interactive' ? interactivePayload : null,
-      message_id: waMessageId,
-      status: 'sent',
-      reply_to_message_id: replyToMessageId || null,
-    })
+    .insert(extendedRow)
     .select()
     .single();
+
+  if (msgError && (msgError.message?.includes('column') || msgError.code === 'PGRST204')) {
+    // If migration 042 hasn't been run yet, retry with base fields
+    const fallback = await db
+      .from('messages')
+      .insert(baseRow)
+      .select()
+      .single();
+    messageRecord = fallback.data;
+    msgError = fallback.error;
+  }
 
   if (msgError) {
     console.error('[send-message] error inserting sent message:', msgError);

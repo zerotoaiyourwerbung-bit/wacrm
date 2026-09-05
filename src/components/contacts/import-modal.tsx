@@ -575,20 +575,20 @@ export function ImportModal({
                   </div>
                 )}
                 {result.tagsAssigned > 0 && (
-                  <div className="flex items-center gap-1.5 text-sm text-cyan-400">
-                    <CheckCircle className="size-4 shrink-0" />
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-cyan-700">
+                    <CheckCircle className="size-4 shrink-0 text-cyan-600" />
                     {t('resultTags', { count: result.tagsAssigned })}
                   </div>
                 )}
                 {result.skipped > 0 && (
-                  <div className="flex items-center gap-1.5 text-sm text-amber-400">
-                    <AlertTriangle className="size-4 shrink-0" />
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-amber-800">
+                    <AlertTriangle className="size-4 shrink-0 text-amber-700" />
                     {t('resultSkipped', { count: result.skipped })}
                   </div>
                 )}
                 {result.failed > 0 && (
-                  <div className="flex items-center gap-1.5 text-sm text-red-400">
-                    <XCircle className="size-4 shrink-0" />
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-red-700">
+                    <XCircle className="size-4 shrink-0 text-red-600" />
                     {t('resultFailed', { count: result.failed })}
                   </div>
                 )}

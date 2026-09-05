@@ -228,7 +228,11 @@
       "downloadFailed": "Couldn't download the attachment",
       "viewImage": "View image",
       "expandVideo": "Expand video",
-      "imageAlt": "Shared image"
+      "imageAlt": "Shared image",
+      "notDelivered": "Not delivered",
+      "deliveryFailedDefault": "WhatsApp was unable to deliver this message. Recipient may be unreachable or outside the 24h customer messaging window.",
+      "retry": "Retry",
+      "retrying": "Retrying..."
     },
     "mediaViewer": {
       "counter": "{index} of {total}",

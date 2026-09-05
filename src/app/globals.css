@@ -48,217 +48,75 @@
   --color-primary-hover: var(--primary-hover);
   --color-primary-soft: var(--primary-soft);
   --color-primary-soft-2: var(--primary-soft-2);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.75rem;
+  --radius-3xl: 0.875rem;
+  --radius-4xl: 1rem;
 }
 
 /* ============================================================
- * THEMING — two orthogonal dimensions
- *
- *   1. MODE   (light / dark)  → neutral surfaces. Selected with
- *      `document.documentElement.dataset.mode`. Defaults to dark.
- *   2. ACCENT (violet / …)    → the primary color only. Selected
- *      with `document.documentElement.dataset.theme`.
- *
- * The two compose: any accent works in either mode. Neutral
- * tokens (background / card / border / muted / sidebar surfaces /
- * neutral charts / radius) live in the MODE blocks below; accent
- * tokens (--primary*, --ring, --chart-1, --sidebar-primary*,
- * --sidebar-ring) live in the ACCENT blocks. They set disjoint
- * variables, so cascade order between them doesn't matter.
- *
- * `:root` carries the dark-mode + violet defaults so a visitor
- * renders correctly before JS runs; the boot script in
- * layout.tsx replays the saved mode + accent before first paint.
- *
- * The three `--primary-*` extras (hover / soft / soft-2) feed
- * hovered primary buttons and tinted-primary surfaces (sidebar
- * active pill, validation badges).
- *
- * Token shapes come straight from the design handoff at
- * project/Color Themes.html — change one, change the other.
+ * THEMING — Vizora Forest-Green & Crisp Light Design System
+ * Single unified theme (no dark mode).
  * ============================================================ */
 
-/* ---- MODE: neutral surfaces ---- */
-
 :root,
+html,
+html[data-mode="light"],
 html[data-mode="dark"] {
-  /* Canvas: Deep Obsidian Midnight Forest (sets deep contrast for cards) */
-  --background: oklch(0.135 0.03 135);
-  /* Primary text: #fbf6f0 (Warm Cream Linen) */
-  --foreground: oklch(0.985 0.01 75);
-  /* Elevated cards: #152805 (Deep Forest Olive from palette) */
-  --card: oklch(0.20 0.05 135);
-  --card-2: oklch(0.235 0.05 135);
-  --card-foreground: oklch(0.985 0.01 75);
-  --popover: oklch(0.20 0.05 135);
-  --popover-foreground: oklch(0.985 0.01 75);
-  /* Secondary: #2a4e46 (Spruce Teal) */
-  --secondary: oklch(0.38 0.06 185);
-  --secondary-foreground: oklch(0.985 0.01 75);
-  /* Inputs and recessed backgrounds */
-  --muted: oklch(0.165 0.03 135);
-  /* High contrast crisp linen/sage for all secondary labels & timestamps (WCAG AAA) */
-  --muted-foreground: oklch(0.86 0.015 85);
-  --accent: oklch(0.24 0.04 150);
-  --accent-foreground: oklch(0.985 0.01 75);
-  --destructive: oklch(0.577 0.245 27.325);
-  /* Borders: Distinct Spruce Teal (#2a4e46) outlines */
-  --border: oklch(0.42 0.06 185 / 0.65);
-  --input: oklch(0.42 0.06 185 / 0.65);
-  --chart-2: oklch(0.38 0.06 185);
-  --chart-3: oklch(0.65 0.15 130);
-  --chart-4: oklch(0.50 0.08 175);
-  --chart-5: oklch(0.24 0.01 30);
-  --radius: 0.625rem;
-  /* Sidebar grounded deep midnight forest */
-  --sidebar: oklch(0.12 0.025 135);
-  --sidebar-foreground: oklch(0.985 0.01 75);
-  --sidebar-accent: oklch(0.22 0.04 135);
-  --sidebar-accent-foreground: oklch(0.985 0.01 75);
-  --sidebar-border: oklch(0.42 0.06 185 / 0.45);
-}
-
-html[data-mode="light"] {
-  /* Canvas: #fbf6f0 (Warm Cream Linen) */
-  --background: oklch(0.975 0.01 75);
-  /* Primary text: #292323 (Dark Espresso Charcoal) */
-  --foreground: oklch(0.20 0.01 30);
+  /* Canvas: Clean off-white background */
+  --background: #F4F7F5;
+  /* Primary text: Deep crisp charcoal */
+  --foreground: #111827;
   /* Crisp clean pure white card surface */
-  --card: oklch(1 0 0);
-  --card-2: oklch(0.955 0.015 75);
-  --card-foreground: oklch(0.20 0.01 30);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.20 0.01 30);
-  /* Secondary: #2a4e46 (Spruce Teal) */
-  --secondary: oklch(0.38 0.06 185);
-  --secondary-foreground: oklch(0.985 0.01 75);
-  --muted: oklch(0.93 0.015 75);
-  /* Deep readable espresso neutral for secondary labels (10:1 WCAG AAA contrast) */
-  --muted-foreground: oklch(0.32 0.02 45);
-  --accent: oklch(0.93 0.015 75);
-  --accent-foreground: oklch(0.20 0.01 30);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.85 0.025 80);
-  --input: oklch(0.85 0.025 80);
-  --chart-2: oklch(0.38 0.06 185);
-  --chart-3: oklch(0.55 0.12 135);
-  --chart-4: oklch(0.68 0.08 175);
-  --chart-5: oklch(0.20 0.01 30);
-  --radius: 0.625rem;
-  /* Sidebar soft warm linen */
-  --sidebar: oklch(0.96 0.012 75);
-  --sidebar-foreground: oklch(0.20 0.01 30);
-  --sidebar-accent: oklch(0.92 0.015 75);
-  --sidebar-accent-foreground: oklch(0.20 0.01 30);
-  --sidebar-border: oklch(0.85 0.025 80);
-}
+  --card: #FFFFFF;
+  --card-2: #F8FAFA;
+  --card-foreground: #111827;
+  --popover: #FFFFFF;
+  --popover-foreground: #111827;
+  /* Secondary: Deep forest green */
+  --secondary: #0F332A;
+  --secondary-foreground: #FFFFFF;
+  /* Recessed surfaces & subtle containers */
+  --muted: #EBF0ED;
+  /* Balanced readable slate for secondary labels - WCAG AA compliant on both canvas and white cards */
+  --muted-foreground: #475569;
+  /* Soft mint tinted accent */
+  --accent: #EBF4EF;
+  --accent-foreground: #0F332A;
+  --destructive: #DC2626;
+  /* Crisp soft sage-gray borders */
+  --border: #E4E9E6;
+  --input: #E4E9E6;
+  /* Modern clean radius */
+  --radius: 0.5rem;
 
-/* ---- ACCENT: primary color ---- */
+  /* Primary Button & Brand: Deep Forest Green */
+  --primary: #0F332A;
+  --primary-foreground: #FFFFFF;
+  --primary-hover: #164237;
+  --primary-soft: rgba(16, 185, 129, 0.12);
+  --primary-soft-2: rgba(16, 185, 129, 0.22);
+  --ring: #10B981;
 
-:root,
-html[data-theme="lime"] {
-  /* Hero Accent in Dark Mode: #a2dc05 (Electric Lime) */
-  --primary: oklch(0.82 0.22 128);
-  /* Deep forest text on neon lime button for WCAG AAA contrast */
-  --primary-foreground: oklch(0.15 0.05 135);
-  --primary-hover: oklch(0.86 0.20 128);
-  --primary-soft: oklch(0.82 0.22 128 / 0.18);
-  --primary-soft-2: oklch(0.82 0.22 128 / 0.28);
-  --ring: oklch(0.82 0.22 128);
-  --chart-1: oklch(0.82 0.22 128);
-  --sidebar-primary: oklch(0.82 0.22 128);
-  --sidebar-primary-foreground: oklch(0.15 0.05 135);
-  --sidebar-ring: oklch(0.82 0.22 128);
-}
+  /* Charts: Emerald, Sky/Teal, Forest, Amber */
+  --chart-1: #10B981;
+  --chart-2: #0284C7;
+  --chart-3: #0F332A;
+  --chart-4: #F59E0B;
+  --chart-5: #64748B;
 
-/* In Light Mode, primary text & active pills use deep forest green for 9:1 contrast */
-html[data-mode="light"][data-theme="lime"],
-html[data-mode="light"]:not([data-theme]) {
-  --primary: oklch(0.38 0.16 130);
-  --primary-foreground: oklch(0.985 0.01 75);
-  --primary-hover: oklch(0.32 0.15 130);
-  --primary-soft: oklch(0.82 0.22 128 / 0.28);
-  --primary-soft-2: oklch(0.82 0.22 128 / 0.45);
-  --ring: oklch(0.38 0.16 130);
-  --chart-1: oklch(0.38 0.16 130);
-  --sidebar-primary: oklch(0.38 0.16 130);
-  --sidebar-primary-foreground: oklch(0.985 0.01 75);
-  --sidebar-ring: oklch(0.38 0.16 130);
-}
-
-html[data-theme="violet"] {
-  --primary: oklch(0.526 0.247 293);
-  --primary-foreground: oklch(0.985 0 0);
-  --primary-hover: oklch(0.6 0.22 293);
-  --primary-soft: oklch(0.526 0.247 293 / 0.12);
-  --primary-soft-2: oklch(0.526 0.247 293 / 0.2);
-  --ring: oklch(0.526 0.247 293);
-  --chart-1: oklch(0.526 0.247 293);
-  --sidebar-primary: oklch(0.526 0.247 293);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-ring: oklch(0.526 0.247 293);
-}
-
-html[data-theme="emerald"] {
-  --primary: oklch(0.62 0.16 162);
-  --primary-foreground: oklch(0.16 0.02 162);
-  --primary-hover: oklch(0.68 0.15 162);
-  --primary-soft: oklch(0.62 0.16 162 / 0.12);
-  --primary-soft-2: oklch(0.62 0.16 162 / 0.22);
-  --ring: oklch(0.62 0.16 162);
-  --chart-1: oklch(0.62 0.16 162);
-  --chart-2: oklch(0.7 0.14 195);
-  --sidebar-primary: oklch(0.62 0.16 162);
-  --sidebar-primary-foreground: oklch(0.16 0.02 162);
-  --sidebar-ring: oklch(0.62 0.16 162);
-}
-
-html[data-theme="cobalt"] {
-  --primary: oklch(0.585 0.2 254);
-  --primary-foreground: oklch(0.985 0 0);
-  --primary-hover: oklch(0.66 0.18 254);
-  --primary-soft: oklch(0.585 0.2 254 / 0.12);
-  --primary-soft-2: oklch(0.585 0.2 254 / 0.22);
-  --ring: oklch(0.585 0.2 254);
-  --chart-1: oklch(0.585 0.2 254);
-  --chart-2: oklch(0.7 0.15 220);
-  --sidebar-primary: oklch(0.585 0.2 254);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-ring: oklch(0.585 0.2 254);
-}
-
-html[data-theme="amber"] {
-  --primary: oklch(0.745 0.16 65);
-  --primary-foreground: oklch(0.18 0.03 65);
-  --primary-hover: oklch(0.8 0.15 65);
-  --primary-soft: oklch(0.745 0.16 65 / 0.12);
-  --primary-soft-2: oklch(0.745 0.16 65 / 0.22);
-  --ring: oklch(0.745 0.16 65);
-  --chart-1: oklch(0.745 0.16 65);
-  --chart-2: oklch(0.7 0.15 35);
-  --sidebar-primary: oklch(0.745 0.16 65);
-  --sidebar-primary-foreground: oklch(0.18 0.03 65);
-  --sidebar-ring: oklch(0.745 0.16 65);
-}
-
-html[data-theme="rose"] {
-  --primary: oklch(0.645 0.22 16);
-  --primary-foreground: oklch(0.985 0 0);
-  --primary-hover: oklch(0.71 0.2 16);
-  --primary-soft: oklch(0.645 0.22 16 / 0.12);
-  --primary-soft-2: oklch(0.645 0.22 16 / 0.22);
-  --ring: oklch(0.645 0.22 16);
-  --chart-1: oklch(0.645 0.22 16);
-  --chart-2: oklch(0.7 0.18 340);
-  --sidebar-primary: oklch(0.645 0.22 16);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-ring: oklch(0.645 0.22 16);
+  /* Sidebar: Deep Dark Pine Forest */
+  --sidebar: #0C2B24;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-accent: #18453B;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #153C33;
+  --sidebar-primary: #10B981;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-ring: #10B981;
 }
 
 @layer base {
