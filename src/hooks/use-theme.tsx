@@ -106,8 +106,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleMode = useCallback(() => {
-    setMode(mode === "dark" ? "light" : "dark");
-  }, [mode, setMode]);
+    // Mode is locked to light mode per project design system
+    setMode("light");
+  }, [setMode]);
 
   // Sync from other tabs — change theme or mode in tab A, tab B
   // catches up without a refresh.
