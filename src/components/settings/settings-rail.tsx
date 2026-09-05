@@ -50,7 +50,7 @@ export function SettingsRail({
     <nav
       aria-label="Settings sections"
       className={cn(
-        'flex gap-1 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        'relative z-10 flex gap-1 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         'border-b border-border',
         'lg:sticky lg:top-0 lg:flex-col lg:overflow-visible lg:border-b-0 lg:pb-0',
       )}
@@ -78,10 +78,15 @@ export function SettingsRail({
                   key={s}
                   ref={isActive ? activeRef : undefined}
                   type="button"
-                  onClick={() => onSelect(s)}
+                  role="tab"
+                  aria-selected={isActive}
                   aria-current={isActive ? 'page' : undefined}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onSelect(s);
+                  }}
                   className={cn(
-                    'flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium whitespace-nowrap transition-colors',
+                    'flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium whitespace-nowrap transition-colors cursor-pointer select-none',
                     'lg:w-full',
                     isActive
                       ? 'bg-primary-soft text-primary font-semibold'

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useMemo, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
@@ -46,13 +46,31 @@ function SettingsPageInner() {
   const { mode } = useTheme();
   const t = useTranslations('Settings');
 
-  // The URL (`?tab=`) is the single source of truth for the active
+  // The URL (`?tab=`) is the initial source of truth for the active
   // section — deep-linkable, and it keeps the existing links in the
   // app sidebar/header working. Legacy tab values (tags, custom-fields)
   // resolve onto their new home; unknown/empty → the Overview landing.
-  const section = resolveSection(searchParams.get('tab'));
+  const urlSection = resolveSection(searchParams.get('tab'));
+  const [activeSection, setActiveSection] = useState<SettingsSection>(urlSection);
+
+  // Sync state if external navigation or browser back/forward changes the query string
+  useEffect(() => {
+    setActiveSection(urlSection);
+  }, [urlSection]);
 
   const go = (next: SettingsSection) => {
+    // 1. Immediately update UI state (0ms latency, instant response)
+    setActiveSection(next);
+
+    // 2. Synchronously update browser URL bar without waiting for Next.js server roundtrip
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      params.set('tab', next);
+      const newUrl = `/settings?${params.toString()}`;
+      window.history.replaceState(null, '', newUrl);
+    }
+
+    // 3. Keep Next.js router in sync
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', next);
     router.replace(`/settings?${params.toString()}`, { scroll: false });
@@ -69,19 +87,34 @@ function SettingsPageInner() {
     [defaultCurrency],
   );
 
-  const panel: Record<SettingsSection, ReactNode> = {
-    overview: <SettingsOverview onSelect={go} />,
-    profile: <ProfileForm />,
-    security: <SecurityPanel />,
-    appearance: <AppearancePanel />,
-    whatsapp: <WhatsAppConfig />,
-    templates: <TemplateManager />,
-    'quick-replies': <QuickRepliesManager />,
-    fields: <FieldsAndTagsPanel />,
-    deals: <DealsSettings />,
-    members: <MembersTab />,
-    api: <ApiKeysSettings />,
-  };
+  function renderPanel(tab: SettingsSection) {
+    switch (tab) {
+      case 'overview':
+        return <SettingsOverview onSelect={go} />;
+      case 'profile':
+        return <ProfileForm />;
+      case 'security':
+        return <SecurityPanel />;
+      case 'appearance':
+        return <AppearancePanel />;
+      case 'whatsapp':
+        return <WhatsAppConfig />;
+      case 'templates':
+        return <TemplateManager />;
+      case 'quick-replies':
+        return <QuickRepliesManager />;
+      case 'fields':
+        return <FieldsAndTagsPanel />;
+      case 'deals':
+        return <DealsSettings />;
+      case 'members':
+        return <MembersTab />;
+      case 'api':
+        return <ApiKeysSettings />;
+      default:
+        return <SettingsOverview onSelect={go} />;
+    }
+  }
 
   return (
     <div>
@@ -95,8 +128,8 @@ function SettingsPageInner() {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[236px_minmax(0,1fr)] lg:items-start">
-        <SettingsRail active={section} onSelect={go} hints={hints} />
-        <div className="min-w-0">{panel[section]}</div>
+        <SettingsRail active={activeSection} onSelect={go} hints={hints} />
+        <div className="min-w-0">{renderPanel(activeSection)}</div>
       </div>
     </div>
   );
