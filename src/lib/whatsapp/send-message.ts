@@ -482,11 +482,16 @@ export async function sendMessageToConversation(
     reply_to_message_id: replyToMessageId || null,
   };
 
+  const resolvedTemplateParams =
+    messageType === 'template'
+      ? templateBodyParams(templateParams, templateMessageParams)
+      : null;
+
   const extendedRow = {
     ...baseRow,
     template_params:
-      messageType === 'template'
-        ? (templateMessageParams?.body ?? templateParams ?? null)
+      resolvedTemplateParams && resolvedTemplateParams.length > 0
+        ? resolvedTemplateParams
         : null,
     template_language: messageType === 'template' ? sendLanguage : null,
   };
